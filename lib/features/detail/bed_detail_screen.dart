@@ -109,7 +109,13 @@ class BedDetailScreen extends ConsumerWidget {
 
           // ── Channel info ──
           _InfoRow(label: 'Channel ID', value: config.channelId),
-          _InfoRow(label: 'API Key', value: '${config.apiKey.substring(0, 4)}••••••••'),
+          // Guard against keys shorter than 4 chars (e.g. during misconfiguration)
+          _InfoRow(
+            label: 'API Key',
+            value: config.apiKey.length >= 4
+                ? '${config.apiKey.substring(0, 4)}••••••••'
+                : '••••••••',
+          ),
         ],
       ),
     );

@@ -17,6 +17,10 @@ class HomeScreen extends ConsumerWidget {
     final settings = ref.watch(appSettingsProvider);
     final readingsAsync = ref.watch(bedReadingsProvider);
 
+    // Prune history for beds that have been removed from settings
+    final activeBedIds = settings.beds.map((b) => b.id).toSet();
+    _historyBuffer.removeWhere((id, _) => !activeBedIds.contains(id));
+
     // Update the sparkline history buffer whenever new data arrives
     readingsAsync.whenData((readings) {
       for (final entry in readings.entries) {

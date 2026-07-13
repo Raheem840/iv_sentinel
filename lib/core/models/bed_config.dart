@@ -53,4 +53,21 @@ class BedConfig {
         lowThreshold: (json['lowThreshold'] as num?)?.toDouble() ?? 30.0,
         critThreshold: (json['critThreshold'] as num?)?.toDouble() ?? 15.0,
       );
+
+  // Required so FutureProvider.family can cache by value, not by object identity.
+  // Without this, every BedDetailScreen navigation fires a redundant HTTP fetch.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is BedConfig &&
+          id == other.id &&
+          name == other.name &&
+          channelId == other.channelId &&
+          apiKey == other.apiKey &&
+          lowThreshold == other.lowThreshold &&
+          critThreshold == other.critThreshold;
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, channelId, apiKey, lowThreshold, critThreshold);
 }
