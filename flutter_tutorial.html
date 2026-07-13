@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IV Sentinel — Flutter from Scratch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #0D1117;
+    --surface:  #161B22;
+    --surface2: #1C2128;
+    --border:   #30363D;
+    --text:     #E6EDF3;
+    --muted:    #8B949E;
+    --green:    #3FB950;
+    --amber:    #D29922;
+    --red:      #F85149;
+    --blue:     #58A6FF;
+    --purple:   #BC8CFF;
+    --sidebar:  260px;
+    --radius:   12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Manrope', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: var(--sidebar);
+    min-height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    position: fixed;
+    top: 0; left: 0;
+    overflow-y: auto;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+  }
+  .sidebar-header {
+    padding: 24px 20px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-header .logo {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .sidebar-header .logo span { color: var(--green); }
+  .sidebar-header .subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+  }
+  .progress-bar {
+    height: 3px;
+    background: var(--border);
+    margin: 16px 20px 0;
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 99px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+  .progress-label {
+    font-size: 10px;
+    color: var(--muted);
+    margin: 6px 20px 16px;
+  }
+  nav { padding: 8px 0 24px; }
+  .nav-section {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 12px 20px 6px;
+  }
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 20px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 500;
+    text-decoration: none;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active {
+    color: var(--green);
+    border-left-color: var(--green);
+    background: rgba(63,185,80,0.06);
+    font-weight: 600;
+  }
+  .nav-item .num {
+    font-size: 10px;
+    background: var(--surface2);
+    color: var(--muted);
+    padding: 1px 6px;
+    border-radius: 99px;
+    font-weight: 700;
+    min-width: 22px;
+    text-align: center;
+  }
+  .nav-item.active .num { background: rgba(63,185,80,0.15); color: var(--green); }
+
+  /* ── Main content ── */
+  #main {
+    margin-left: var(--sidebar);
+    flex: 1;
+    max-width: calc(100vw - var(--sidebar));
+  }
+  .chapter {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 60px 40px 80px;
+  }
+  .chapter + .chapter { border-top: 1px solid var(--border); }
+
+  /* Chapter header */
+  .chapter-tag {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 16px;
+  }
+  h2 {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 40px 0 12px;
+    color: var(--text);
+  }
+  h3 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 28px 0 8px;
+    color: var(--text);
+  }
+  .chapter-intro {
+    font-size: 17px;
+    color: var(--muted);
+    line-height: 1.8;
+    margin-bottom: 32px;
+    border-left: 3px solid var(--green);
+    padding-left: 16px;
+  }
+  p { margin-bottom: 14px; color: var(--text); }
+
+  /* Callout boxes */
+  .callout {
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin: 20px 0;
+    border: 1px solid;
+    font-size: 14px;
+  }
+  .callout-title {
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .callout.info  { background: rgba(88,166,255,0.06); border-color: rgba(88,166,255,0.3); }
+  .callout.info .callout-title  { color: var(--blue); }
+  .callout.tip   { background: rgba(63,185,80,0.06);  border-color: rgba(63,185,80,0.3); }
+  .callout.tip .callout-title   { color: var(--green); }
+  .callout.warn  { background: rgba(210,153,34,0.06); border-color: rgba(210,153,34,0.3); }
+  .callout.warn .callout-title  { color: var(--amber); }
+  .callout.key   { background: rgba(188,140,255,0.06);border-color: rgba(188,140,255,0.3); }
+  .callout.key .callout-title   { color: var(--purple); }
+  .callout p { margin: 0; color: var(--text); opacity: 0.85; }
+
+  /* Code blocks */
+  .code-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin: 20px 0;
+    overflow: hidden;
+  }
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .code-filename {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .code-filename::before {
+    content: '';
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    opacity: 0.7;
+    display: inline-block;
+  }
+  .copy-btn {
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-family: 'Manrope', sans-serif;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { border-color: var(--green); color: var(--green); }
+  .copy-btn.copied { border-color: var(--green); color: var(--green); }
+  pre {
+    padding: 20px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.75;
+    font-family: 'JetBrains Mono', monospace;
+    tab-size: 2;
+  }
+  code { font-family: 'JetBrains Mono', monospace; }
+  p code, li code {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 1px 6px;
+    font-size: 12px;
+    color: var(--blue);
+  }
+
+  /* Syntax colours */
+  .kw  { color: #FF7B72; }   /* keywords: class, return, void, final */
+  .ty  { color: #79C0FF; }   /* types: String, Widget, int */
+  .fn  { color: #D2A8FF; }   /* functions/methods */
+  .st  { color: #A5D6FF; }   /* strings */
+  .cm  { color: #8B949E; font-style: italic; } /* comments */
+  .nm  { color: #F0883E; }   /* numbers */
+  .dc  { color: #58A6FF; }   /* decorators / annotations */
+  .pk  { color: #7EE787; }   /* named params / keys */
+
+  /* Concept cards */
+  .concept-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .concept-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .concept-card .cc-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .concept-card .cc-body {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* Quiz */
+  .quiz {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin: 32px 0;
+  }
+  .quiz-q {
+    font-weight: 700;
+    margin-bottom: 14px;
+    font-size: 15px;
+  }
+  .quiz-q::before { content: '💡  '; }
+  .quiz-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    margin-bottom: 8px;
+    font-size: 14px;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .quiz-option:hover { border-color: var(--blue); background: rgba(88,166,255,0.05); }
+  .quiz-option.correct { border-color: var(--green); background: rgba(63,185,80,0.08); color: var(--green); }
+  .quiz-option.wrong   { border-color: var(--red);   background: rgba(248,81,73,0.08);  color: var(--red); }
+  .quiz-option .opt-key {
+    font-weight: 700;
+    font-size: 12px;
+    min-width: 22px;
+    height: 22px;
+    background: var(--surface2);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+  .quiz-feedback {
+    margin-top: 12px;
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    display: none;
+  }
+  .quiz-feedback.show { display: block; }
+  .quiz-feedback.correct { background: rgba(63,185,80,0.08); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+  .quiz-feedback.wrong   { background: rgba(248,81,73,0.08);  color: var(--red);   border: 1px solid rgba(248,81,73,0.3); }
+
+  /* Flow diagram */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 20px 0;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .flow-node {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .flow-node.green { border-color: rgba(63,185,80,0.4); color: var(--green); }
+  .flow-node.blue  { border-color: rgba(88,166,255,0.4); color: var(--blue); }
+  .flow-node.purple{ border-color: rgba(188,140,255,0.4); color: var(--purple); }
+  .flow-arrow { color: var(--muted); padding: 0 4px; font-size: 16px; }
+
+  /* Tag pill */
+  .tag {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 99px;
+    margin: 2px;
+  }
+  .tag.dart    { background: rgba(88,166,255,0.12); color: var(--blue); }
+  .tag.flutter { background: rgba(63,185,80,0.12);  color: var(--green); }
+  .tag.riverpod{ background: rgba(188,140,255,0.12);color: var(--purple); }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px; }
+  th { background: var(--surface2); color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  td code { font-size: 12px; }
+
+  ul, ol { padding-left: 24px; margin-bottom: 14px; }
+  li { margin-bottom: 6px; }
+  strong { font-weight: 700; color: var(--text); }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    :root { --sidebar: 220px; }
+    .concept-grid { grid-template-columns: 1fr; }
+    .chapter { padding: 40px 24px 60px; }
+  }
+  @media (max-width: 640px) {
+    #sidebar { display: none; }
+    #main { margin-left: 0; max-width: 100vw; }
+    h1 { font-size: 26px; }
+  }
+
+  /* Anchor offset for fixed sidebar */
+  .chapter { scroll-margin-top: 20px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ SIDEBAR ═══════════════════════════ -->
+<aside id="sidebar">
+  <div class="sidebar-header">
+    <div class="logo">IV <span>Sentinel</span></div>
+    <div class="subtitle">Flutter from Scratch · Live Tutorial</div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="progress-label" id="progressLabel">0 / 8 chapters</div>
+  <nav>
+    <div class="nav-section">Foundations</div>
+    <a class="nav-item active" href="#ch0" onclick="setActive(this)">
+      <span class="num">0</span> Introduction
+    </a>
+    <a class="nav-item" href="#ch1" onclick="setActive(this)">
+      <span class="num">1</span> Widgets
+    </a>
+    <a class="nav-item" href="#ch2" onclick="setActive(this)">
+      <span class="num">2</span> State & StatefulWidget
+    </a>
+    <a class="nav-item" href="#ch3" onclick="setActive(this)">
+      <span class="num">3</span> Riverpod — Global State
+    </a>
+    <div class="nav-section">Building IV Sentinel</div>
+    <a class="nav-item" href="#ch4" onclick="setActive(this)">
+      <span class="num">4</span> Models & JSON
+    </a>
+    <a class="nav-item" href="#ch5" onclick="setActive(this)">
+      <span class="num">5</span> Async / HTTP Polling
+    </a>
+    <a class="nav-item" href="#ch6" onclick="setActive(this)">
+      <span class="num">6</span> Navigation
+    </a>
+    <a class="nav-item" href="#ch7" onclick="setActive(this)">
+      <span class="num">7</span> Custom Painting
+    </a>
+    <div class="nav-section">Coming Soon</div>
+    <a class="nav-item" href="#ch8" onclick="setActive(this)">
+      <span class="num">8</span> Charts & fl_chart
+    </a>
+    <a class="nav-item" href="#ch9" onclick="setActive(this)">
+      <span class="num">9</span> Notifications & Alerts
+    </a>
+  </nav>
+</aside>
+
+<!-- ═══════════════════════════ MAIN ═══════════════════════════ -->
+<main id="main">
+
+<!-- ══════════════════ CH 0: INTRO ══════════════════ -->
+<section class="chapter" id="ch0">
+  <div class="chapter-tag">Chapter 0</div>
+  <h1>Flutter from Scratch<br>using IV Sentinel</h1>
+  <p class="chapter-intro">
+    You're going to learn Flutter by reading the exact code powering a real nurse-facing
+    IV monitoring app. Every example is live, copied from the codebase. No toy apps.
+    No contrived counters.
+  </p>
+
+  <h2>What is IV Sentinel?</h2>
+  <p>
+    IV Sentinel is a Flutter mobile app that polls ThingSpeak IoT channels — one channel
+    per hospital bed — and shows nurses a live dashboard of fluid levels. When any bed
+    crosses into <strong>CRITICAL</strong> the phone vibrates and fires a local push notification.
+  </p>
+
+  <div class="concept-grid">
+    <div class="concept-card">
+      <div class="cc-title">🏗️ Framework</div>
+      <div class="cc-body">Flutter 3.x — Google's cross-platform UI toolkit. One codebase → Android, iOS, web, desktop.</div>
+    </div>
+    <div class="concept-card">
+      <div class="cc-title">🎯 Language</div>
+      <div class="cc-body">Dart — strongly-typed, null-safe, garbage-collected. Similar to Java/C# but cleaner.</div>
+    </div>
+    <div class="concept-card">
+      <div class="cc-title">📦 State</div>
+      <div class="cc-body">Riverpod 2 — reactive global state management. Replaces setState + InheritedWidget.</div>
+    </div>
+    <div class="concept-card">
+      <div class="cc-title">🌐 Data</div>
+      <div class="cc-body">ThingSpeak REST API, polled every 15s. Pure HTTP — no Firebase, no WebSockets.</div>
+    </div>
+  </div>
+
+  <h2>The App Architecture at a Glance</h2>
+  <div class="flow">
+    <div class="flow-node green">ThingSpeak API</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node blue">ThingSpeakService</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node purple">Riverpod Provider</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node green">UI Widgets</div>
+  </div>
+  <div class="flow">
+    <div class="flow-node blue">shared_preferences</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node purple">AppSettingsNotifier</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node green">Settings Screen</div>
+  </div>
+
+  <h2>How to Use This Tutorial</h2>
+  <ul>
+    <li>Each chapter introduces one concept, then shows it live in the IV Sentinel code.</li>
+    <li>Code blocks are copyable — hit the button in the top-right corner.</li>
+    <li>Each chapter ends with a <strong>quiz</strong>. Get it right before moving on.</li>
+    <li>Chapters build on each other — read them in order the first time.</li>
+  </ul>
+
+  <div class="callout tip">
+    <div class="callout-title">👋 First time with Dart?</div>
+    <p>You don't need to know Dart before starting. Every new keyword is explained the first time it appears. If you know JavaScript, Python, or Java you'll follow along fine.</p>
+  </div>
+</section>
+
+<!-- ══════════════════ CH 1: WIDGETS ══════════════════ -->
+<section class="chapter" id="ch1">
+  <div class="chapter-tag">Chapter 1</div>
+  <h1>Widgets — Everything Is a Widget</h1>
+  <p class="chapter-intro">
+    In Flutter, literally everything on screen is a widget: a button, a text label,
+    the padding around a button, even the app itself. Widgets compose — you nest them
+    inside each other exactly like HTML elements.
+  </p>
+
+  <div class="callout key">
+    <div class="callout-title">Key Concept: Widget</div>
+    <p>A <strong>Widget</strong> is a description of part of a UI. It's immutable — once built, it doesn't change. When data changes, Flutter builds a <em>new</em> widget and compares it to the old one to figure out what to repaint (this is called the "diff").</p>
+  </div>
+
+  <h2>StatelessWidget vs StatefulWidget</h2>
+  <p>There are two kinds of widgets. The rule is simple:</p>
+  <table>
+    <tr><th>Widget Type</th><th>Use when…</th><th>IV Sentinel example</th></tr>
+    <tr><td><code>StatelessWidget</code></td><td>The widget only depends on its inputs (props). Same inputs → same output, always.</td><td><code>StatusBadge</code>, <code>SparklineChart</code></td></tr>
+    <tr><td><code>StatefulWidget</code></td><td>The widget has internal state that changes over time (e.g. an animation, a timer).</td><td><code>BedCard</code>, <code>CriticalBanner</code></td></tr>
+  </table>
+
+  <h2>A Real StatelessWidget — StatusBadge</h2>
+  <p>
+    <code>StatusBadge</code> shows a colored pill: "NORMAL", "LOW", or "CRITICAL".
+    It takes a <code>statusCode</code> integer and a <code>small</code> flag.
+    Same inputs → same look, always. No internal state needed.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/home/widgets/status_badge.dart</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// A StatelessWidget has no State object — it only knows what's passed in.</span>
+<span class="kw">class</span> <span class="ty">StatusBadge</span> <span class="kw">extends</span> <span class="ty">StatelessWidget</span> {
+  <span class="kw">final</span> <span class="ty">int</span> statusCode;   <span class="cm">// required input — this widget can't change it</span>
+  <span class="kw">final</span> <span class="ty">bool</span> small;       <span class="cm">// optional input with a default</span>
+
+  <span class="kw">const</span> <span class="ty">StatusBadge</span>({<span class="pk">super</span>.key, <span class="pk">required this</span>.statusCode, <span class="kw">this</span>.small = <span class="kw">false</span>});
+
+  <span class="cm">// build() is called every time Flutter needs to draw this widget.</span>
+  <span class="cm">// It returns the widget tree that describes what to show.</span>
+  <span class="dc">@override</span>
+  <span class="ty">Widget</span> <span class="fn">build</span>(<span class="ty">BuildContext</span> context) {
+    <span class="kw">final</span> color = <span class="fn">statusColor</span>(statusCode);   <span class="cm">// green / amber / red</span>
+    <span class="kw">final</span> label = <span class="fn">statusLabel</span>(statusCode);   <span class="cm">// "NORMAL" / "LOW" / "CRITICAL"</span>
+
+    <span class="kw">return</span> <span class="ty">Container</span>(
+      <span class="cm">// Containers wrap children and let you apply decoration</span>
+      padding: <span class="kw">const</span> <span class="ty">EdgeInsets</span>.<span class="fn">symmetric</span>(<span class="pk">horizontal</span>: <span class="nm">8</span>, <span class="pk">vertical</span>: <span class="nm">3</span>),
+      decoration: <span class="ty">BoxDecoration</span>(
+        color: color.<span class="fn">withAlpha</span>(<span class="nm">30</span>),
+        borderRadius: <span class="ty">BorderRadius</span>.<span class="fn">circular</span>(<span class="nm">20</span>),
+        border: <span class="ty">Border</span>.<span class="fn">all</span>(<span class="pk">color</span>: color.<span class="fn">withAlpha</span>(<span class="nm">100</span>), <span class="pk">width</span>: <span class="nm">1</span>),
+      ),
+      child: <span class="ty">Text</span>(label,
+        style: <span class="ty">TextStyle</span>(<span class="pk">color</span>: color, <span class="pk">fontSize</span>: <span class="nm">10</span>, <span class="pk">fontWeight</span>: <span class="ty">FontWeight</span>.w700),
+      ),
+    );
+  }
+}</pre>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-title">Why <code>const</code> constructor?</div>
+    <p>The <code>const</code> keyword tells Dart this object can be created at compile time. Flutter can reuse the same instance across rebuilds instead of creating a new one — a small but meaningful performance win.</p>
+  </div>
+
+  <h2>A Real StatefulWidget — BedCard</h2>
+  <p>
+    <code>BedCard</code> needs an internal animation (the pulsing border when CRITICAL).
+    Animations require an <code>AnimationController</code>, which must be stored somewhere
+    that persists between rebuilds. That's what <code>State</code> is for.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/home/widgets/bed_card.dart (structure)</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// StatefulWidget = the immutable configuration (inputs)</span>
+<span class="kw">class</span> <span class="ty">BedCard</span> <span class="kw">extends</span> <span class="ty">StatefulWidget</span> {
+  <span class="kw">final</span> <span class="ty">BedConfig</span> config;    <span class="cm">// which bed to show</span>
+  <span class="kw">final</span> <span class="ty">BedReading</span>? reading; <span class="cm">// null = still loading (? = nullable)</span>
+  <span class="kw">final</span> <span class="ty">List</span>&lt;<span class="ty">double</span>&gt; history; <span class="cm">// recent readings for the sparkline</span>
+  <span class="kw">final</span> <span class="ty">VoidCallback</span> onTap;  <span class="cm">// function to call when tapped</span>
+
+  <span class="kw">const</span> <span class="ty">BedCard</span>({<span class="pk">super</span>.key, <span class="pk">required this</span>.config, ...});
+
+  <span class="dc">@override</span>
+  <span class="ty">State</span>&lt;<span class="ty">BedCard</span>&gt; <span class="fn">createState</span>() => <span class="fn">_BedCardState</span>();
+  <span class="cm">//                                     ↑ this is the State class below</span>
+}
+
+<span class="cm">// State = the mutable part. Lives as long as the card is on screen.</span>
+<span class="cm">// "with SingleTickerProviderStateMixin" gives us vsync for animations.</span>
+<span class="kw">class</span> <span class="ty">_BedCardState</span> <span class="kw">extends</span> <span class="ty">State</span>&lt;<span class="ty">BedCard</span>&gt; <span class="kw">with</span> <span class="ty">SingleTickerProviderStateMixin</span> {
+  <span class="kw">late</span> <span class="ty">AnimationController</span> _pulse; <span class="cm">// lives in State, survives rebuilds</span>
+
+  <span class="dc">@override</span>
+  <span class="kw">void</span> <span class="fn">initState</span>() {          <span class="cm">// called once when card first appears</span>
+    <span class="pk">super</span>.<span class="fn">initState</span>();
+    _pulse = <span class="ty">AnimationController</span>(<span class="pk">vsync</span>: <span class="kw">this</span>, <span class="pk">duration</span>: ...);
+  }
+
+  <span class="dc">@override</span>
+  <span class="kw">void</span> <span class="fn">dispose</span>() {            <span class="cm">// called when card leaves the screen</span>
+    _pulse.<span class="fn">dispose</span>();          <span class="cm">// MUST dispose to prevent memory leaks</span>
+    <span class="pk">super</span>.<span class="fn">dispose</span>();
+  }
+
+  <span class="dc">@override</span>
+  <span class="ty">Widget</span> <span class="fn">build</span>(<span class="ty">BuildContext</span> context) {
+    <span class="cm">// widget.config accesses the StatefulWidget's fields from State</span>
+    <span class="kw">return</span> <span class="ty">GestureDetector</span>(<span class="pk">onTap</span>: widget.onTap, <span class="pk">child</span>: ...);
+  }
+}</pre>
+  </div>
+
+  <h2>Widget Composition — Building UIs from Pieces</h2>
+  <p>
+    The <code>BedCard</code>'s visual hierarchy is a tree of nested widgets.
+    Flutter renders this tree into pixels on screen.
+  </p>
+  <div class="flow" style="flex-direction:column; align-items:flex-start;">
+    <div class="flow-node green" style="width:100%">GestureDetector (handles taps)</div>
+    <div style="padding-left:20px; border-left: 2px solid var(--border); margin: 4px 0 4px 12px; display:flex; flex-direction:column; gap:4px; width:calc(100% - 12px)">
+      <div class="flow-node blue">AnimatedBuilder (drives border glow)</div>
+      <div style="padding-left:20px; border-left: 2px solid var(--border); margin: 4px 0 4px 12px; display:flex; flex-direction:column; gap:4px; width:calc(100% - 12px)">
+        <div class="flow-node purple">Container (card background + border + shadow)</div>
+        <div style="padding-left:20px; border-left: 2px solid var(--border); margin: 4px 0 4px 12px; display:flex; flex-direction:column; gap:4px; width:calc(100% - 12px)">
+          <div class="flow-node" style="border-color:rgba(210,153,34,0.4);color:var(--amber)">Column (bed name · gauge · sparkline)</div>
+          <div style="padding-left:20px; border-left: 2px solid var(--border); margin: 4px 0 4px 12px; display:flex; flex-direction:column; gap:4px; width:calc(100% - 12px)">
+            <div class="flow-node green">StatusBadge · FluidGauge · SparklineChart</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUIZ 1 -->
+  <div class="quiz" id="quiz1">
+    <div class="quiz-q">Which widget type should you use for a "last updated" label that refreshes every 10 seconds?</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz1','wrong',this)"><span class="opt-key">A</span> StatelessWidget — it just displays text</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz1','correct',this)"><span class="opt-key">B</span> StatefulWidget — it needs a Timer stored in State that triggers rebuilds</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz1','wrong',this)"><span class="opt-key">C</span> Either one — Flutter automatically detects when to rebuild</div>
+    <div class="quiz-feedback" id="quiz1-feedback"></div>
+  </div>
+</section>
+
+<!-- ══════════════════ CH 2: STATE ══════════════════ -->
+<section class="chapter" id="ch2">
+  <div class="chapter-tag">Chapter 2</div>
+  <h1>State — Data That Changes Over Time</h1>
+  <p class="chapter-intro">
+    State is any data that can change and that should update the UI when it does.
+    The fluid level in a bed is state. Whether a bed is CRITICAL is state.
+    The user's poll interval preference is state.
+  </p>
+
+  <div class="callout key">
+    <div class="callout-title">Key Concept: setState()</div>
+    <p><code>setState()</code> is Flutter's built-in way to update local widget state. You call it, change the data inside, and Flutter re-runs <code>build()</code> with the new data. It's simple but limited to one widget — it can't share state across multiple screens.</p>
+  </div>
+
+  <h2>The Problem setState() Doesn't Solve</h2>
+  <p>
+    Imagine the polling timer fires with a new reading for Bed 3.
+    We need to update three places simultaneously:
+  </p>
+  <ul>
+    <li>The <code>BedCard</code> on the home screen (update the gauge)</li>
+    <li>The <code>BedDetailScreen</code> header (if that bed is currently open)</li>
+    <li>The <code>CriticalBanner</code> (add or remove bed 3 from the list)</li>
+  </ul>
+  <p>
+    With <code>setState()</code>, you'd have to pass a callback up through every parent widget,
+    then back down to each child. This "prop drilling" becomes unmaintainable.
+    That's why we use Riverpod — which is what Chapter 3 covers.
+  </p>
+
+  <h2>Implicit Animations with AnimatedContainer</h2>
+  <p>
+    Flutter has "implicit" animation widgets — they animate between old and new values
+    automatically when you call <code>setState()</code>. No <code>AnimationController</code> needed.
+    IV Sentinel uses <code>AnimatedSwitcher</code> to crossfade the status badge when a bed
+    changes from NORMAL to LOW.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/home/widgets/bed_card.dart — AnimatedSwitcher</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// AnimatedSwitcher crossfades between its old and new child (300ms).</span>
+<span class="cm">// The "key" is critical — when the key changes, it knows to animate.</span>
+<span class="ty">AnimatedSwitcher</span>(
+  duration: <span class="kw">const</span> <span class="ty">Duration</span>(<span class="pk">milliseconds</span>: <span class="nm">300</span>),
+  child: reading != <span class="kw">null</span>
+      ? <span class="ty">StatusBadge</span>(
+          key: <span class="ty">ValueKey</span>(statusCode), <span class="cm">// ← different key = animate</span>
+          statusCode: statusCode,
+          small: <span class="kw">true</span>,
+        )
+      : <span class="kw">const</span> <span class="ty">SizedBox</span>.<span class="fn">shrink</span>(),   <span class="cm">// empty box while loading</span>
+)</pre>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-title">⚠️ The ValueKey rule</div>
+    <p>Without a <code>ValueKey</code>, <code>AnimatedSwitcher</code> can't tell whether you're showing a new widget or updating an existing one. Always give the child a key whose value changes when the content changes.</p>
+  </div>
+
+  <h2>Explicit Animations — AnimationController</h2>
+  <p>
+    The CRITICAL border pulse is an <em>explicit</em> animation — you control it manually
+    with an <code>AnimationController</code>. You start it, stop it, and define exactly
+    how it moves with a <code>Tween</code>.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/home/widgets/bed_card.dart — pulse animation</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// AnimationController drives the animation forward/backward over time.</span>
+_pulse = <span class="ty">AnimationController</span>(
+  vsync: <span class="kw">this</span>,                                   <span class="cm">// "this" = the State (via mixin)</span>
+  duration: <span class="kw">const</span> <span class="ty">Duration</span>(<span class="pk">milliseconds</span>: <span class="nm">900</span>),
+);
+
+<span class="cm">// A Tween defines the range. Here: opacity pulses between 0.3 and 1.0.</span>
+_pulseAnim = <span class="ty">Tween</span>&lt;<span class="ty">double</span>&gt;(<span class="pk">begin</span>: <span class="nm">0.3</span>, <span class="pk">end</span>: <span class="nm">1.0</span>).<span class="fn">animate</span>(
+  <span class="ty">CurvedAnimation</span>(<span class="pk">parent</span>: _pulse, <span class="pk">curve</span>: <span class="ty">Curves</span>.easeInOut),
+);
+
+<span class="cm">// Start looping when bed enters CRITICAL; stop when it clears.</span>
+<span class="kw">void</span> <span class="fn">_updatePulse</span>() {
+  <span class="kw">if</span> (widget.reading?.isCritical == <span class="kw">true</span>) {
+    _pulse.<span class="fn">repeat</span>(<span class="pk">reverse</span>: <span class="kw">true</span>); <span class="cm">// ping-pong: 0.3→1.0→0.3→...</span>
+  } <span class="kw">else</span> {
+    _pulse.<span class="fn">stop</span>();
+    _pulse.value = <span class="nm">0</span>;
+  }
+}
+
+<span class="cm">// AnimatedBuilder listens to the controller and rebuilds only the border.</span>
+<span class="ty">AnimatedBuilder</span>(
+  animation: _pulseAnim,
+  builder: (context, child) => <span class="ty">Container</span>(
+    decoration: <span class="ty">BoxDecoration</span>(
+      border: <span class="ty">Border</span>.<span class="fn">all</span>(
+        color: color.<span class="fn">withAlpha</span>((_pulseAnim.value * <span class="nm">220</span>).<span class="fn">toInt</span>()),
+      ),
+    ),
+    child: child, <span class="cm">// ← child is NOT rebuilt on each animation tick</span>
+  ),
+)</pre>
+  </div>
+
+  <!-- QUIZ 2 -->
+  <div class="quiz" id="quiz2">
+    <div class="quiz-q">Why is <code>child: child</code> passed separately in <code>AnimatedBuilder</code> instead of building it inline?</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz2','wrong',this)"><span class="opt-key">A</span> It's just a style preference — both approaches work the same way</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz2','wrong',this)"><span class="opt-key">B</span> Flutter requires it — you'll get an error if you inline the child</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz2','correct',this)"><span class="opt-key">C</span> Performance: the child subtree is only built once and cached. Only the wrapper (Container with the border) rebuilds on each animation tick.</div>
+    <div class="quiz-feedback" id="quiz2-feedback"></div>
+  </div>
+</section>
+
+<!-- ══════════════════ CH 3: RIVERPOD ══════════════════ -->
+<section class="chapter" id="ch3">
+  <div class="chapter-tag">Chapter 3</div>
+  <h1>Riverpod — Global State Without Prop Drilling</h1>
+  <p class="chapter-intro">
+    Riverpod is a reactive state management library. Think of it as a
+    global key-value store where the values are live — any widget that reads
+    a value is automatically rebuilt when the value changes.
+  </p>
+
+  <div class="callout key">
+    <div class="callout-title">Key Concepts</div>
+    <p><strong>Provider</strong> — a named piece of global state. Declared once, readable anywhere.<br>
+    <strong>ProviderScope</strong> — the root wrapper that initializes the store. Required at the top of every Riverpod app.<br>
+    <strong>ConsumerWidget</strong> — a widget that can watch providers. Gets a <code>ref</code> parameter.<br>
+    <strong>ref.watch()</strong> — subscribe: rebuild when the value changes.<br>
+    <strong>ref.read()</strong> — read once without subscribing (use in callbacks).</p>
+  </div>
+
+  <h2>The Provider Hierarchy in IV Sentinel</h2>
+  <table>
+    <tr><th>Provider</th><th>Type</th><th>Holds</th></tr>
+    <tr><td><code>appSettingsProvider</code></td><td>StateNotifierProvider</td><td>Bed list, poll interval, toggles — persisted to device</td></tr>
+    <tr><td><code>bedReadingsProvider</code></td><td>AsyncNotifierProvider</td><td>Latest reading per bed, refreshed on a timer</td></tr>
+    <tr><td><code>bedHistoryProvider</code></td><td>FutureProvider.family</td><td>60-point history per bed (for the detail chart)</td></tr>
+  </table>
+
+  <h2>StateNotifier — The Bed Settings Store</h2>
+  <p>
+    <code>AppSettingsNotifier</code> stores the user's bed list and preferences.
+    Any widget that watches <code>appSettingsProvider</code> rebuilds when beds
+    are added, removed, or settings change.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/settings/bed_config_notifier.dart</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// StateNotifier&lt;T&gt;: holds state of type T. Notifies listeners when state changes.</span>
+<span class="kw">class</span> <span class="ty">AppSettingsNotifier</span> <span class="kw">extends</span> <span class="ty">StateNotifier</span>&lt;<span class="ty">AppSettings</span>&gt; {
+  <span class="ty">AppSettingsNotifier</span>() : <span class="pk">super</span>(<span class="kw">const</span> <span class="ty">AppSettings</span>()) {
+    <span class="fn">_load</span>(); <span class="cm">// load persisted settings from device on startup</span>
+  }
+
+  <span class="cm">// "state = ..." triggers a rebuild for all watchers.</span>
+  <span class="cm">// We NEVER mutate state directly — always replace it (immutable pattern).</span>
+  <span class="ty">Future</span>&lt;<span class="kw">void</span>&gt; <span class="fn">addBed</span>(<span class="ty">BedConfig</span> bed) <span class="kw">async</span> {
+    state = state.<span class="fn">copyWith</span>(beds: [...state.beds, bed]);
+    <span class="kw">await</span> <span class="fn">_saveBeds</span>(); <span class="cm">// persist to shared_preferences</span>
+  }
+
+  <span class="ty">Future</span>&lt;<span class="kw">void</span>&gt; <span class="fn">removeBed</span>(<span class="ty">String</span> id) <span class="kw">async</span> {
+    state = state.<span class="fn">copyWith</span>(
+      beds: state.beds.<span class="fn">where</span>((b) => b.id != id).<span class="fn">toList</span>(),
+    );
+    <span class="kw">await</span> <span class="fn">_saveBeds</span>();
+  }
+}
+
+<span class="cm">// The provider — this is the "address" widgets use to find the state.</span>
+<span class="kw">final</span> appSettingsProvider =
+    <span class="ty">StateNotifierProvider</span>&lt;<span class="ty">AppSettingsNotifier</span>, <span class="ty">AppSettings</span>&gt;(
+  (ref) => <span class="ty">AppSettingsNotifier</span>(),
+);</pre>
+  </div>
+
+  <h2>Reading Providers in Widgets</h2>
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/home/home_screen.dart — ConsumerWidget</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// ConsumerWidget gives us a "ref" — the key into the Riverpod store.</span>
+<span class="kw">class</span> <span class="ty">HomeScreen</span> <span class="kw">extends</span> <span class="ty">ConsumerWidget</span> {
+  <span class="kw">const</span> <span class="ty">HomeScreen</span>({<span class="pk">super</span>.key});
+
+  <span class="dc">@override</span>
+  <span class="ty">Widget</span> <span class="fn">build</span>(<span class="ty">BuildContext</span> context, <span class="ty">WidgetRef</span> ref) {
+    <span class="cm">// ref.watch() — rebuild HomeScreen whenever appSettingsProvider changes.</span>
+    <span class="kw">final</span> settings = ref.<span class="fn">watch</span>(appSettingsProvider);
+
+    <span class="cm">// ref.watch() on an async provider — gives loading/error/data states.</span>
+    <span class="kw">final</span> readingsAsync = ref.<span class="fn">watch</span>(bedReadingsProvider);
+
+    <span class="kw">return</span> <span class="ty">Scaffold</span>(
+      body: readingsAsync.<span class="fn">when</span>(
+        loading: () => <span class="ty">LoadingGrid</span>(<span class="pk">count</span>: settings.beds.length),
+        error: (e, st) => <span class="ty">ErrorView</span>(<span class="pk">message</span>: e.<span class="fn">toString</span>()),
+        data: (readings) => <span class="ty">BedGrid</span>(<span class="pk">readings</span>: readings),
+      ),
+    );
+  }
+}</pre>
+  </div>
+
+  <div class="callout tip">
+    <div class="callout-title">watch() vs read() — when to use which</div>
+    <p>Use <code>ref.watch()</code> inside <code>build()</code> — it subscribes and rebuilds the widget when the value changes.<br>
+    Use <code>ref.read()</code> inside callbacks (button presses, timers) — it reads once without subscribing. Using <code>watch()</code> inside a callback is a common mistake that causes bugs.</p>
+  </div>
+
+  <h2>AsyncNotifier — Live Polling with Loading States</h2>
+  <p>
+    <code>BedReadingsNotifier</code> is an <code>AsyncNotifier</code>. Its state has three possible
+    conditions — loading, error, or data — which map directly to the three branches
+    of <code>.when()</code> in the UI.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/core/providers/bed_readings_provider.dart</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="kw">class</span> <span class="ty">BedReadingsNotifier</span> <span class="kw">extends</span> <span class="ty">AsyncNotifier</span>&lt;<span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">BedReading</span>&gt;&gt; {
+  <span class="ty">Timer</span>? _timer;
+  <span class="kw">final</span> <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">int</span>&gt; _prevStatus = {};
+
+  <span class="dc">@override</span>
+  <span class="ty">Future</span>&lt;<span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">BedReading</span>&gt;&gt; <span class="fn">build</span>() <span class="kw">async</span> {
+    ref.<span class="fn">onDispose</span>(() => _timer?.<span class="fn">cancel</span>());
+
+    <span class="cm">// .select() avoids rebuilding the timer when dark mode toggles, etc.</span>
+    <span class="kw">final</span> interval = ref.<span class="fn">watch</span>(
+      appSettingsProvider.<span class="fn">select</span>((s) => s.pollIntervalSeconds),
+    );
+
+    <span class="cm">// Timer fires _poll() every N seconds — the heartbeat of the app.</span>
+    _timer = <span class="ty">Timer</span>.<span class="fn">periodic</span>(<span class="ty">Duration</span>(<span class="pk">seconds</span>: interval), (_) => <span class="fn">_poll</span>());
+
+    <span class="kw">return</span> <span class="fn">_fetchAll</span>(); <span class="cm">// first fetch immediately</span>
+  }
+}</pre>
+  </div>
+
+  <!-- QUIZ 3 -->
+  <div class="quiz" id="quiz3">
+    <div class="quiz-q">A user taps "Refresh" on the home screen. The correct way to trigger a re-fetch is:</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz3','wrong',this)"><span class="opt-key">A</span> <code>ref.watch(bedReadingsProvider.notifier).refresh()</code> — watch gives us the notifier</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz3','correct',this)"><span class="opt-key">B</span> <code>ref.read(bedReadingsProvider.notifier).refresh()</code> — read is correct inside a callback</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz3','wrong',this)"><span class="opt-key">C</span> <code>setState(() => {})</code> — this triggers a global rebuild</div>
+    <div class="quiz-feedback" id="quiz3-feedback"></div>
+  </div>
+</section>
+
+<!-- ══════════════════ CH 4: MODELS ══════════════════ -->
+<section class="chapter" id="ch4">
+  <div class="chapter-tag">Chapter 4</div>
+  <h1>Models &amp; JSON — Structuring Your Data</h1>
+  <p class="chapter-intro">
+    A model class is a Dart class whose only job is to hold data. No UI, no network calls.
+    Just fields and methods to convert to/from JSON for storage or transmission.
+  </p>
+
+  <h2>BedConfig — What You Configure</h2>
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/core/models/bed_config.dart</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="dc">@immutable</span> <span class="cm">// tells Dart: once created, no fields can change</span>
+<span class="kw">class</span> <span class="ty">BedConfig</span> {
+  <span class="kw">final</span> <span class="ty">String</span> id;            <span class="cm">// unique ID — used as Riverpod family key</span>
+  <span class="kw">final</span> <span class="ty">String</span> name;          <span class="cm">// e.g. "Bed 3A"</span>
+  <span class="kw">final</span> <span class="ty">String</span> channelId;     <span class="cm">// ThingSpeak channel number</span>
+  <span class="kw">final</span> <span class="ty">String</span> apiKey;        <span class="cm">// ThingSpeak read API key</span>
+  <span class="kw">final</span> <span class="ty">double</span> lowThreshold;  <span class="cm">// default 30%</span>
+  <span class="kw">final</span> <span class="ty">double</span> critThreshold; <span class="cm">// default 15%</span>
+
+  <span class="cm">// copyWith lets you "update" an immutable object by creating a new one.</span>
+  <span class="cm">// e.g. config.copyWith(name: "Bed 4") returns a new BedConfig with only name changed.</span>
+  <span class="ty">BedConfig</span> <span class="fn">copyWith</span>({<span class="ty">String</span>? name, <span class="ty">String</span>? channelId, ...}) => <span class="ty">BedConfig</span>(
+    id: id, name: name ?? <span class="kw">this</span>.name, channelId: channelId ?? <span class="kw">this</span>.channelId, ...
+  );
+
+  <span class="cm">// Serialize to JSON for SharedPreferences storage.</span>
+  <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="kw">dynamic</span>&gt; <span class="fn">toJson</span>() => {
+    <span class="st">'id'</span>: id, <span class="st">'name'</span>: name, <span class="st">'channelId'</span>: channelId, <span class="st">'apiKey'</span>: apiKey,
+    <span class="st">'lowThreshold'</span>: lowThreshold, <span class="st">'critThreshold'</span>: critThreshold,
+  };
+
+  <span class="cm">// Deserialize from JSON back into a BedConfig object.</span>
+  <span class="cm">// "factory" = constructor that can return a new or existing instance.</span>
+  <span class="kw">factory</span> <span class="ty">BedConfig</span>.<span class="fn">fromJson</span>(<span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="kw">dynamic</span>&gt; json) => <span class="ty">BedConfig</span>(
+    id: json[<span class="st">'id'</span>] <span class="kw">as</span> <span class="ty">String</span>,
+    name: json[<span class="st">'name'</span>] <span class="kw">as</span> <span class="ty">String</span>,
+    lowThreshold: (json[<span class="st">'lowThreshold'</span>] <span class="kw">as</span> <span class="ty">num</span>?)?.<span class="fn">toDouble</span>() ?? <span class="nm">30.0</span>,
+    ...
+  );
+
+  <span class="cm">// == and hashCode are critical for FutureProvider.family cache lookups.</span>
+  <span class="cm">// Without these, every navigation to BedDetailScreen fires a fresh HTTP request.</span>
+  <span class="dc">@override</span>
+  <span class="kw">bool</span> <span class="kw">operator</span> ==(<span class="ty">Object</span> other) =>
+      other <span class="kw">is</span> <span class="ty">BedConfig</span> &amp;&amp; id == other.id &amp;&amp; name == other.name &amp;&amp; ...;
+
+  <span class="dc">@override</span>
+  <span class="kw">int</span> <span class="kw">get</span> hashCode => <span class="ty">Object</span>.<span class="fn">hash</span>(id, name, channelId, apiKey, lowThreshold, critThreshold);
+}</pre>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-title">Why override == and hashCode?</div>
+    <p>Dart's default <code>==</code> compares object identity (same address in memory), not value. Two <code>BedConfig</code> objects with identical fields would be "different" by default. <code>FutureProvider.family</code> uses <code>==</code> to decide if it has a cached result — without the override, every screen navigation triggers a new HTTP fetch even when nothing changed.</p>
+  </div>
+
+  <!-- QUIZ 4 -->
+  <div class="quiz" id="quiz4">
+    <div class="quiz-q">Why does <code>BedConfig</code> use <code>copyWith()</code> instead of just changing the fields directly?</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz4','correct',this)"><span class="opt-key">A</span> Because <code>BedConfig</code> is immutable (<code>@immutable</code> + <code>final</code> fields). You can't change fields after creation — you make a new object with the changed values.</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz4','wrong',this)"><span class="opt-key">B</span> It's just a convenience helper — you could also change fields directly.</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz4','wrong',this)"><span class="opt-key">C</span> Riverpod requires it — providers don't work with mutable objects.</div>
+    <div class="quiz-feedback" id="quiz4-feedback"></div>
+  </div>
+</section>
+
+<!-- ══════════════════ CH 5: ASYNC ══════════════════ -->
+<section class="chapter" id="ch5">
+  <div class="chapter-tag">Chapter 5</div>
+  <h1>Async / HTTP — Talking to ThingSpeak</h1>
+  <p class="chapter-intro">
+    Network requests take time. Dart handles this with <code>async</code>/<code>await</code>
+    — the same pattern as JavaScript's Promises. The app polls ThingSpeak
+    every 15 seconds for every configured bed.
+  </p>
+
+  <div class="callout key">
+    <div class="callout-title">Key Concepts</div>
+    <p><strong>Future&lt;T&gt;</strong> — a value that will be available at some point in the future. Like a promise.<br>
+    <strong>async</strong> — marks a function as asynchronous (it returns a Future).<br>
+    <strong>await</strong> — pauses until a Future completes, then gives you the value.</p>
+  </div>
+
+  <h2>ThingSpeakService — Parsing Field1, Field2, Field3</h2>
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/core/services/thingspeak_service.dart</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="ty">Future</span>&lt;<span class="ty">BedReading</span>&gt; <span class="fn">fetchLatest</span>(<span class="ty">String</span> channelId, <span class="ty">String</span> apiKey) <span class="kw">async</span> {
+  <span class="cm">// Build the URL. ThingSpeak returns the last single reading as JSON.</span>
+  <span class="kw">final</span> uri = <span class="ty">Uri</span>.<span class="fn">parse</span>(
+    <span class="st">'https://api.thingspeak.com/channels/$channelId/feeds/last.json?api_key=$apiKey'</span>,
+  );
+
+  <span class="cm">// "await" pauses here until the HTTP response arrives (max 10s).</span>
+  <span class="kw">final</span> response = <span class="kw">await</span> http.<span class="fn">get</span>(uri).<span class="fn">timeout</span>(<span class="kw">const</span> <span class="ty">Duration</span>(<span class="pk">seconds</span>: <span class="nm">10</span>));
+
+  <span class="kw">if</span> (response.statusCode != <span class="nm">200</span>) {
+    <span class="kw">throw</span> <span class="ty">Exception</span>(<span class="st">'ThingSpeak error ${response.statusCode}'</span>);
+  }
+
+  <span class="kw">return</span> <span class="fn">_parseEntry</span>(<span class="fn">jsonDecode</span>(response.body) <span class="kw">as</span> <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="kw">dynamic</span>&gt;, channelId);
+}
+
+<span class="ty">BedReading</span> <span class="fn">_parseEntry</span>(<span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="kw">dynamic</span>&gt; entry, <span class="ty">String</span> fallbackBedId) {
+  <span class="cm">// field3 = bed ID stamped by the hardware. Fall back to channel ID if absent.</span>
+  <span class="kw">final</span> bedId = (entry[<span class="st">'field3'</span>] <span class="kw">as</span> <span class="ty">String</span>?)?.<span class="fn">trim</span>().isNotEmpty == <span class="kw">true</span>
+      ? entry[<span class="st">'field3'</span>] <span class="kw">as</span> <span class="ty">String</span>
+      : fallbackBedId;
+
+  <span class="cm">// double.tryParse returns null if the string isn't a valid number.</span>
+  <span class="cm">// The ?? 0.0 provides a default so we never crash on bad data.</span>
+  <span class="kw">final</span> percent = <span class="ty">double</span>.<span class="fn">tryParse</span>(entry[<span class="st">'field1'</span>] <span class="kw">as</span> <span class="ty">String</span>? ?? <span class="st">''</span>) ?? <span class="nm">0.0</span>;
+  <span class="kw">final</span> statusCode = <span class="ty">int</span>.<span class="fn">tryParse</span>(entry[<span class="st">'field2'</span>] <span class="kw">as</span> <span class="ty">String</span>? ?? <span class="st">''</span>) ?? <span class="nm">0</span>;
+  <span class="kw">final</span> timestamp = <span class="ty">DateTime</span>.<span class="fn">tryParse</span>(entry[<span class="st">'created_at'</span>] <span class="kw">as</span> <span class="ty">String</span>? ?? <span class="st">''</span>)
+      ?? <span class="ty">DateTime</span>.now();
+
+  <span class="kw">return</span> <span class="ty">BedReading</span>(
+    bedId: bedId,
+    percent: percent.<span class="fn">clamp</span>(<span class="nm">0</span>, <span class="nm">100</span>),    <span class="cm">// ensure 0–100 range</span>
+    statusCode: statusCode.<span class="fn">clamp</span>(<span class="nm">0</span>, <span class="nm">2</span>),  <span class="cm">// ensure valid 0/1/2</span>
+    timestamp: timestamp,
+  );
+}</pre>
+  </div>
+
+  <h2>Parallel Fetches — All Beds at Once</h2>
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/core/providers/bed_readings_provider.dart — _fetchAll()</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="ty">Future</span>&lt;<span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">BedReading</span>&gt;&gt; <span class="fn">_fetchAll</span>() <span class="kw">async</span> {
+  <span class="kw">final</span> beds = ref.<span class="fn">read</span>(appSettingsProvider).beds;
+  <span class="kw">if</span> (beds.isEmpty) <span class="kw">return</span> {};
+
+  <span class="cm">// Preserve last known readings — if one bed fails, others aren't wiped.</span>
+  <span class="kw">final</span> result = <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">BedReading</span>&gt;.<span class="fn">from</span>(state.valueOrNull ?? {});
+
+  <span class="cm">// Future.wait runs all fetches concurrently (in parallel), not one-by-one.</span>
+  <span class="cm">// With 4 beds at 15s timeout, sequential would take up to 60s. Parallel: 15s max.</span>
+  <span class="kw">await</span> <span class="ty">Future</span>.<span class="fn">wait</span>(
+    beds.<span class="fn">map</span>((bed) <span class="kw">async</span> {
+      <span class="kw">try</span> {
+        result[bed.id] = <span class="kw">await</span> _service.<span class="fn">fetchLatest</span>(bed.channelId, bed.apiKey);
+      } <span class="kw">catch</span> (_) {
+        <span class="cm">// This bed failed — keep its previous reading, don't throw.</span>
+      }
+    }),
+  );
+
+  <span class="kw">return</span> result;
+}</pre>
+  </div>
+
+  <!-- QUIZ 5 -->
+  <div class="quiz" id="quiz5">
+    <div class="quiz-q">If you have 4 beds and each ThingSpeak call takes 2 seconds, how long does <code>_fetchAll()</code> take with <code>Future.wait()</code> vs sequential <code>await</code>?</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz5','wrong',this)"><span class="opt-key">A</span> Same — Dart is single-threaded so they always take the same time</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz5','correct',this)"><span class="opt-key">B</span> Future.wait: ~2s (all run at once). Sequential await: ~8s (one after another)</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz5','wrong',this)"><span class="opt-key">C</span> Sequential is faster — less overhead than managing parallel Futures</div>
+    <div class="quiz-feedback" id="quiz5-feedback"></div>
+  </div>
+</section>
+
+<!-- ══════════════════ CH 6: NAVIGATION ══════════════════ -->
+<section class="chapter" id="ch6">
+  <div class="chapter-tag">Chapter 6</div>
+  <h1>Navigation — Moving Between Screens</h1>
+  <p class="chapter-intro">
+    Flutter's Navigator manages a stack of screens (called "routes"). You push a new
+    screen onto the stack to go forward, and pop to go back. IV Sentinel uses
+    named routes for clean URL-style navigation.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/main.dart — route definitions</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="ty">MaterialApp</span>(
+  initialRoute: <span class="st">'/'</span>,
+  routes: {
+    <span class="st">'/'</span>:         (_) => <span class="kw">const</span> <span class="ty">HomeScreen</span>(),
+    <span class="st">'/settings'</span>: (_) => <span class="kw">const</span> <span class="ty">SettingsScreen</span>(),
+  },
+  <span class="cm">// onGenerateRoute handles routes that need arguments (like a bed ID).</span>
+  onGenerateRoute: (settings) {
+    <span class="kw">if</span> (settings.name == <span class="st">'/detail'</span>) {
+      <span class="kw">final</span> config = settings.arguments <span class="kw">as</span> <span class="ty">BedConfig</span>;
+      <span class="kw">return</span> <span class="ty">MaterialPageRoute</span>(
+        builder: (_) => <span class="ty">BedDetailScreen</span>(<span class="pk">config</span>: config),
+      );
+    }
+    <span class="kw">return null</span>;
+  },
+)
+
+<span class="cm">// Navigating to detail screen from a BedCard tap:</span>
+<span class="ty">Navigator</span>.<span class="fn">pushNamed</span>(context, <span class="st">'/detail'</span>, <span class="pk">arguments</span>: config);
+
+<span class="cm">// Notification tap → navigate from OUTSIDE the widget tree:</span>
+navigatorKey.currentState?.<span class="fn">popUntil</span>((route) => route.isFirst);
+navigatorKey.currentState?.<span class="fn">pushNamed</span>(<span class="st">'/detail'</span>, <span class="pk">arguments</span>: bed);</pre>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-title">Why navigatorKey?</div>
+    <p>Flutter navigation normally requires a <code>BuildContext</code> — which only exists inside widgets. When a notification tap fires, we're outside the widget tree. A <code>GlobalKey&lt;NavigatorState&gt;</code> gives us a handle to the Navigator that's accessible from anywhere, including the AlertService callback.</p>
+  </div>
+</section>
+
+<!-- ══════════════════ CH 7: CUSTOM PAINTING ══════════════════ -->
+<section class="chapter" id="ch7">
+  <div class="chapter-tag">Chapter 7</div>
+  <h1>Custom Painting — The Fluid Gauge</h1>
+  <p class="chapter-intro">
+    Standard Flutter widgets can't draw arbitrary shapes. For the circular arc gauge,
+    we use <code>CustomPainter</code> — a direct API to the Skia drawing canvas.
+    This is how Apple Watch rings, Oura readiness scores, and most premium gauges are built.
+  </p>
+
+  <div class="callout key">
+    <div class="callout-title">Key Concept: CustomPainter</div>
+    <p><code>CustomPainter</code> gives you a <code>Canvas</code> object and a <code>Size</code>. You draw on the canvas using <code>Paint</code> objects (configure color, stroke, etc.) and drawing commands (<code>drawArc</code>, <code>drawCircle</code>, <code>drawLine</code>, etc.).</p>
+  </div>
+
+  <h2>The Arc Geometry</h2>
+  <p>
+    Flutter's <code>drawArc</code> measures angles from the 3 o'clock position, going
+    clockwise (because screen y-axis points down). Our gauge:
+  </p>
+  <ul>
+    <li><strong>startAngle</strong>: <code>π × 0.75</code> (135°) = 7:30 position (bottom-left)</li>
+    <li><strong>sweepAngle</strong>: <code>π × 1.5</code> (270°) = clockwise to 4:30 position (bottom-right)</li>
+    <li>Gap at the bottom between 4:30 and 7:30 = empty space that looks like a dial</li>
+  </ul>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/home/widgets/fluid_gauge.dart — painter</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="kw">class</span> <span class="ty">_GaugePainter</span> <span class="kw">extends</span> <span class="ty">CustomPainter</span> {
+  <span class="kw">final</span> <span class="ty">double</span> percent;   <span class="cm">// 0–100 (already animated by TweenAnimationBuilder)</span>
+  <span class="kw">final</span> <span class="ty">Color</span> color;     <span class="cm">// green / amber / red based on status</span>
+  <span class="kw">final</span> <span class="ty">Color</span> trackColor;
+  <span class="kw">final</span> <span class="ty">double</span> strokeWidth;
+
+  <span class="kw">static const</span> _startAngle = math.pi * <span class="nm">0.75</span>; <span class="cm">// 135° from 3 o'clock</span>
+  <span class="kw">static const</span> _totalSweep = math.pi * <span class="nm">1.5</span>;  <span class="cm">// 270° total arc</span>
+
+  <span class="dc">@override</span>
+  <span class="kw">void</span> <span class="fn">paint</span>(<span class="ty">Canvas</span> canvas, <span class="ty">Size</span> size) {
+    <span class="kw">final</span> center = <span class="ty">Offset</span>(size.width / <span class="nm">2</span>, size.height / <span class="nm">2</span>);
+    <span class="kw">final</span> radius = (size.width - strokeWidth) / <span class="nm">2</span>;
+    <span class="kw">final</span> rect = <span class="ty">Rect</span>.<span class="fn">fromCircle</span>(<span class="pk">center</span>: center, <span class="pk">radius</span>: radius);
+
+    <span class="cm">// 1. Background track — full 270° in dim color</span>
+    <span class="kw">final</span> trackPaint = <span class="ty">Paint</span>()
+      ..style = <span class="ty">PaintingStyle</span>.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = <span class="ty">StrokeCap</span>.round
+      ..color = trackColor;
+    canvas.<span class="fn">drawArc</span>(rect, _startAngle, _totalSweep, <span class="kw">false</span>, trackPaint);
+
+    <span class="cm">// 2. Filled arc — only (percent/100) of the total sweep</span>
+    <span class="kw">final</span> fillSweep = _totalSweep * (percent / <span class="nm">100</span>);
+    <span class="kw">final</span> fillPaint = <span class="ty">Paint</span>()
+      ..style = <span class="ty">PaintingStyle</span>.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = <span class="ty">StrokeCap</span>.round
+      ..color = color;
+    canvas.<span class="fn">drawArc</span>(rect, _startAngle, fillSweep, <span class="kw">false</span>, fillPaint);
+
+    <span class="cm">// 3. Tip dot — bright circle at the leading edge of the fill</span>
+    <span class="kw">final</span> tipAngle = _startAngle + fillSweep;
+    <span class="kw">final</span> tipX = center.dx + radius * math.<span class="fn">cos</span>(tipAngle);
+    <span class="kw">final</span> tipY = center.dy + radius * math.<span class="fn">sin</span>(tipAngle);
+    canvas.<span class="fn">drawCircle</span>(<span class="ty">Offset</span>(tipX, tipY), strokeWidth * <span class="nm">0.45</span>,
+      <span class="ty">Paint</span>()..color = color);
+  }
+
+  <span class="cm">// shouldRepaint: return true only when relevant data changed.</span>
+  <span class="cm">// Returning true always works but wastes performance.</span>
+  <span class="dc">@override</span>
+  <span class="kw">bool</span> <span class="fn">shouldRepaint</span>(<span class="ty">_GaugePainter</span> old) =>
+      old.percent != percent || old.color != color;
+}</pre>
+  </div>
+
+  <h2>Animating the Gauge with TweenAnimationBuilder</h2>
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/home/widgets/fluid_gauge.dart — FluidGauge</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// TweenAnimationBuilder smoothly interpolates from old percent to new percent.</span>
+<span class="cm">// Every time "percent" changes (new poll arrives), the arc animates to the new value.</span>
+<span class="ty">TweenAnimationBuilder</span>&lt;<span class="ty">double</span>&gt;(
+  tween: <span class="ty">Tween</span>(<span class="pk">begin</span>: <span class="nm">0</span>, <span class="pk">end</span>: percent.<span class="fn">clamp</span>(<span class="nm">0</span>, <span class="nm">100</span>)),
+  duration: <span class="kw">const</span> <span class="ty">Duration</span>(<span class="pk">milliseconds</span>: <span class="nm">700</span>),
+  curve: <span class="ty">Curves</span>.easeOutCubic,
+  builder: (context, animatedPercent, _) {
+    <span class="kw">return</span> <span class="ty">CustomPaint</span>(
+      painter: <span class="ty">_GaugePainter</span>(
+        percent: animatedPercent, <span class="cm">// this is the interpolated value</span>
+        color: color,
+        ...
+      ),
+      child: <span class="cm">/* percentage text in center */</span>,
+    );
+  },
+)</pre>
+  </div>
+
+  <!-- QUIZ 7 -->
+  <div class="quiz" id="quiz7">
+    <div class="quiz-q">The gauge's arc fills from bottom-left to bottom-right. If <code>percent = 50</code>, the arc tip is at approximately which clock position?</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz7','wrong',this)"><span class="opt-key">A</span> 3 o'clock (right side)</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz7','correct',this)"><span class="opt-key">B</span> 12 o'clock (top center) — 50% of the 270° sweep from 7:30 lands at the top</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz7','wrong',this)"><span class="opt-key">C</span> 6 o'clock (bottom center)</div>
+    <div class="quiz-feedback" id="quiz7-feedback"></div>
+  </div>
+</section>
+
+<!-- ══════════════════ CH 8: CHARTS (placeholder) ══════════════════ -->
+<section class="chapter" id="ch8">
+  <div class="chapter-tag">Chapter 8 — Coming Soon</div>
+  <h1>Charts with fl_chart</h1>
+  <p class="chapter-intro">
+    This chapter covers the sparkline chart (mini, no axes) and the full history chart
+    (labeled axes, dashed threshold lines, touch tooltip). Being written now — check back soon.
+  </p>
+  <div class="callout info">
+    <div class="callout-title">Preview</div>
+    <p>Topics: <code>LineChartData</code>, <code>FlSpot</code>, <code>ExtraLinesData</code> for threshold lines, <code>LineTouchData</code> for tooltips, and <code>BarAreaData</code> for the gradient fill under the sparkline.</p>
+  </div>
+</section>
+
+<!-- ══════════════════ CH 9: NOTIFICATIONS (placeholder) ══════════════════ -->
+<section class="chapter" id="ch9">
+  <div class="chapter-tag">Chapter 9 — Coming Soon</div>
+  <h1>Notifications &amp; Vibration</h1>
+  <p class="chapter-intro">
+    This chapter covers <code>flutter_local_notifications</code>, custom vibration patterns,
+    the broadcast stream for notification taps, cold-launch handling, and the
+    iOS background polling limitation.
+  </p>
+  <div class="callout warn">
+    <div class="callout-title">iOS limitation preview</div>
+    <p>On iOS, Dart isolates are suspended when the app is backgrounded. The polling Timer stops within ~30 seconds of the app leaving the foreground. True background notifications on iOS require a server + APNs push. This chapter explains the architecture for that.</p>
+  </div>
+</section>
+
+</main><!-- end #main -->
+
+<script>
+// ── Navigation active state ──
+function setActive(el) {
+  document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ── Progress tracking ──
+const totalChapters = 8;
+let visited = new Set();
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      const num = parseInt(id.replace('ch',''));
+      if (!isNaN(num) && num <= totalChapters) visited.add(num);
+      updateProgress();
+      // Update sidebar active state
+      const link = document.querySelector(`a[href="#${id}"]`);
+      if (link) {
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        link.classList.add('active');
+      }
+    }
+  });
+}, { threshold: 0.3 });
+
+document.querySelectorAll('.chapter').forEach(c => observer.observe(c));
+
+function updateProgress() {
+  const pct = Math.round((visited.size / totalChapters) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = `${visited.size} / ${totalChapters} chapters`;
+}
+
+// ── Copy code ──
+function copyCode(btn) {
+  const pre = btn.closest('.code-wrap').querySelector('pre');
+  // Strip HTML tags to get plain text
+  const text = pre.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// ── Quiz logic ──
+const answers = {
+  quiz1: { correct: 'StatefulWidget — it needs a Timer stored in State that triggers rebuilds', feedback: 'Correct! The 10-second refresh requires a Timer. Timers need to be stored in State (to survive rebuilds) and cancelled in dispose() (to prevent leaks). StatelessWidget has no State object to store the Timer in.' },
+  quiz2: { correct: 'Performance: the child subtree is only built once and cached. Only the wrapper (Container with the border) rebuilds on each animation tick.', feedback: 'Correct! AnimatedBuilder\'s child parameter is built once and passed as an already-rendered widget to the builder. This means only the Container rebuilds 60 times per second — not the entire BedCard subtree.' },
+  quiz3: { correct: 'ref.read(bedReadingsProvider.notifier).refresh() — read is correct inside a callback', feedback: 'Correct! ref.watch() subscribes and rebuilds the widget when the value changes. Using watch() inside a button callback would cause infinite rebuild loops. Use read() in callbacks — it fetches once without subscribing.' },
+  quiz4: { correct: 'Because BedConfig is immutable (@immutable + final fields). You can\'t change fields after creation — you make a new object with the changed values.', feedback: 'Correct! Immutability is intentional. When Riverpod detects that state changed (via ==), it notifies watchers. If you mutated an object in place, the old and new references would be the same object and Riverpod would not detect the change.' },
+  quiz5: { correct: 'Future.wait: ~2s (all run at once). Sequential await: ~8s (one after another)', feedback: 'Correct! Future.wait starts all 4 HTTP requests simultaneously and waits for all of them to complete. The total time is bounded by the slowest single request (~2s), not the sum of all requests (~8s). This is critical for keeping the poll cycle within the 15-second ThingSpeak window.' },
+  quiz7: { correct: '12 o'clock (top center) — 50% of the 270° sweep from 7:30 lands at the top', feedback: 'Correct! Starting at 7:30 (135°) and sweeping 50% of 270° = 135° clockwise. 135° + 135° = 270° from 3 o\'clock. 270° in Flutter canvas coordinates = 12 o\'clock (top center). The gauge fills through left→top at 50%.' },
+};
+
+function checkQuiz(quizId, result, el) {
+  const quiz = document.getElementById(quizId);
+  const opts = quiz.querySelectorAll('.quiz-option');
+  opts.forEach(o => o.style.pointerEvents = 'none');
+
+  const feedback = document.getElementById(quizId + '-feedback');
+  const ans = answers[quizId];
+
+  if (result === 'correct') {
+    el.classList.add('correct');
+    feedback.className = 'quiz-feedback show correct';
+    feedback.textContent = '✓ ' + ans.feedback;
+  } else {
+    el.classList.add('wrong');
+    feedback.className = 'quiz-feedback show wrong';
+    feedback.textContent = '✗ That\'s not right. ' + ans.feedback;
+    // Highlight the correct answer
+    opts.forEach(o => {
+      if (o.textContent.includes(ans.correct)) o.classList.add('correct');
+    });
+  }
+}
+</script>
+</body>
+</html>
