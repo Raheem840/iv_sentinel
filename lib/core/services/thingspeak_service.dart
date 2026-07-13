@@ -40,6 +40,14 @@ class ThingSpeakService {
     }
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
+
+    // ThingSpeak returns HTTP 200 with {"status":"error",...} for bad channel IDs/keys
+    if (body['feeds'] == null) {
+      throw Exception(
+        'ThingSpeak returned no feeds for channel $channelId — check channel ID and API key',
+      );
+    }
+
     final feeds = body['feeds'] as List<dynamic>;
 
     // Parse each feed entry; skip any that have null/missing fields

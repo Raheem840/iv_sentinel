@@ -18,65 +18,87 @@ class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
   Future<Map<String, BedReading>> build() async {
     ref.onDispose(() => _timer?.cancel());
 
-    final settings = ref.watch(appSettingsProvider);
-
-    _timer = Timer.periodic(
-      Duration(seconds: settings.pollIntervalSeconds),
-      (_) => _poll(),
+    // Only rebuild polling machinery when beds list or interval changes —
+    // not on cosmetic settings changes like dark mode or vibration toggle.
+    final beds = ref.watch(appSettingsProvider.select((s) => s.beds));
+    final interval = ref.watch(
+      appSettingsProvider.select((s) => s.pollIntervalSeconds),
     );
+
+    _timer = Timer.periodic(Duration(seconds: interval), (_) => _poll());
+
+    // Remove history for beds that no longer exist
+    _prevStatus.removeWhere((id, _) => !beds.any((b) => b.id == id));
 
     return _fetchAll();
   }
 
-  /// Called by refresh buttons and the timer.
+  /// Manual refresh — shows loading spinner, then refetches.
   Future<void> refresh() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(_fetchAll);
   }
 
+  /// Fetches all beds in parallel. A single bed failure does NOT wipe others —
+  /// the previous reading is preserved for any bed whose fetch throws.
   Future<Map<String, BedReading>> _fetchAll() async {
     final beds = ref.read(appSettingsProvider).beds;
     if (beds.isEmpty) return {};
 
-    // Fetch all beds in parallel
-    final results = await Future.wait(
-      beds.map((bed) => _service.fetchLatest(bed.channelId, bed.apiKey)),
+    // Start with whatever we already have so failures keep last-known values
+    final result = Map<String, BedReading>.from(state.valueOrNull ?? {});
+
+    // Run all fetches concurrently; catch per-bed so one failure is isolated
+    await Future.wait(
+      beds.map((bed) async {
+        try {
+          result[bed.id] = await _service.fetchLatest(bed.channelId, bed.apiKey);
+        } catch (_) {
+          // Keep the previous reading for this bed; don't disrupt other beds
+        }
+      }),
     );
 
-    return {for (var i = 0; i < beds.length; i++) beds[i].id: results[i]};
+    return result;
   }
 
+  /// Timer tick — updates state without a full loading-spinner cycle.
   Future<void> _poll() async {
     try {
       final settings = ref.read(appSettingsProvider);
       final fresh = await _fetchAll();
 
-      // Check each bed for status transitions and fire alerts if needed
-      if (settings.notificationsEnabled || settings.vibrationEnabled) {
-        for (final bed in settings.beds) {
-          final reading = fresh[bed.id];
-          if (reading == null) continue;
+      // Evaluate status transitions and fire per-feature alerts
+      for (final bed in settings.beds) {
+        final reading = fresh[bed.id];
+        if (reading == null) continue;
 
-          final prev = _prevStatus[bed.id];
-          final curr = reading.statusCode;
+        final prev = _prevStatus[bed.id];
+        final curr = reading.statusCode;
 
-          // Only alert on entry into CRITICAL or LOW (not on every poll)
-          if (prev != curr) {
-            if (curr == 2) {
-              // Entered CRITICAL
-              await AlertService.instance.fireCritical(
-                bed.name, reading.percent.toInt(), bed.id,
-              );
-            } else if (curr == 1 && (prev == null || prev == 0)) {
-              // Entered LOW (only from normal — avoid re-alerting if coming down from critical)
-              await AlertService.instance.fireLow(
-                bed.name, reading.percent.toInt(), bed.id,
-              );
-            }
+        if (prev != curr) {
+          if (curr == 2) {
+            // Entered CRITICAL — fire notification and/or vibration based on user prefs
+            await AlertService.instance.fireCritical(
+              bed.name,
+              reading.percent.toInt(),
+              bed.id,
+              notify: settings.notificationsEnabled,
+              vibrate: settings.vibrationEnabled,
+            );
+          } else if (curr == 1 && (prev == null || prev == 0)) {
+            // Entered LOW from normal (don't re-alert when coming down from CRITICAL)
+            await AlertService.instance.fireLow(
+              bed.name,
+              reading.percent.toInt(),
+              bed.id,
+              notify: settings.notificationsEnabled,
+              vibrate: settings.vibrationEnabled,
+            );
           }
-
-          _prevStatus[bed.id] = curr;
         }
+
+        _prevStatus[bed.id] = curr;
       }
 
       state = AsyncData(fresh);
