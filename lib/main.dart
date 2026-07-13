@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/models/bed_config.dart';
@@ -8,15 +9,12 @@ import 'features/settings/bed_config_notifier.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/detail/bed_detail_screen.dart';
 
-// Global navigator key so AlertService tap handler can push routes from outside the widget tree
+// Global key lets AlertService navigate from outside the widget tree
 final navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Init AlertService and start listening for notification taps
   await AlertService.instance.init();
-
   runApp(const ProviderScope(child: IvSentinelApp()));
 }
 
@@ -28,21 +26,44 @@ class IvSentinelApp extends ConsumerStatefulWidget {
 }
 
 class _IvSentinelAppState extends ConsumerState<IvSentinelApp> {
+  StreamSubscription<String>? _tapSub;
+
   @override
   void initState() {
     super.initState();
 
-    // When a notification is tapped, find the matching bed and open its detail screen
-    AlertService.instance.notificationTaps.listen((bedConfigId) {
-      final beds = ref.read(appSettingsProvider).beds;
-      final bed = beds.cast<BedConfig?>().firstWhere(
-            (b) => b?.id == bedConfigId,
-            orElse: () => null,
-          );
-      if (bed != null) {
-        navigatorKey.currentState?.pushNamed('/detail', arguments: bed);
-      }
+    // Handle notification taps that arrive while the app is running
+    _tapSub = AlertService.instance.notificationTaps.listen(_navigateToBed);
+
+    // Handle cold-launch taps: fired during init() before any listener existed.
+    // addPostFrameCallback ensures the navigator is mounted before we push.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pending = AlertService.instance.consumePendingTap();
+      if (pending != null) _navigateToBed(pending);
     });
+  }
+
+  @override
+  void dispose() {
+    _tapSub?.cancel(); // prevent double-push on hot-restart
+    super.dispose();
+  }
+
+  void _navigateToBed(String bedConfigId) {
+    final beds = ref.read(appSettingsProvider).beds;
+    final bed = beds.cast<BedConfig?>().firstWhere(
+          (b) => b?.id == bedConfigId,
+          orElse: () => null,
+        );
+    if (bed == null) return;
+
+    final nav = navigatorKey.currentState;
+    if (nav == null) return;
+
+    // If the user is already on this bed's detail screen, don't push again.
+    // popUntil + push ensures we always land on exactly one detail screen.
+    nav.popUntil((route) => route.isFirst || route.settings.name == '/');
+    nav.pushNamed('/detail', arguments: bed);
   }
 
   @override
