@@ -454,12 +454,15 @@
     <a class="nav-item" href="#ch7" onclick="setActive(this)">
       <span class="num">7</span> Custom Painting
     </a>
-    <div class="nav-section">Coming Soon</div>
     <a class="nav-item" href="#ch8" onclick="setActive(this)">
-      <span class="num">8</span> Charts & fl_chart
+      <span class="num">8</span> Charts &amp; fl_chart
     </a>
     <a class="nav-item" href="#ch9" onclick="setActive(this)">
-      <span class="num">9</span> Notifications & Alerts
+      <span class="num">9</span> Hero Animations
+    </a>
+    <div class="nav-section">Coming Soon</div>
+    <a class="nav-item" href="#ch10" onclick="setActive(this)">
+      <span class="num">10</span> Notifications &amp; Alerts
     </a>
   </nav>
 </aside>
@@ -1284,32 +1287,251 @@ navigatorKey.currentState?.<span class="fn">pushNamed</span>(<span class="st">'/
   </div>
 </section>
 
-<!-- ══════════════════ CH 8: CHARTS (placeholder) ══════════════════ -->
+<!-- ══════════════════ CH 8: CHARTS ══════════════════ -->
 <section class="chapter" id="ch8">
-  <div class="chapter-tag">Chapter 8 — Coming Soon</div>
+  <div class="chapter-tag">Chapter 8</div>
   <h1>Charts with fl_chart</h1>
   <p class="chapter-intro">
-    This chapter covers the sparkline chart (mini, no axes) and the full history chart
-    (labeled axes, dashed threshold lines, touch tooltip). Being written now — check back soon.
+    IV Sentinel has two charts: a tiny sparkline on each bed card (no axes, purely visual),
+    and a full history chart on the detail screen with labeled axes, dashed threshold lines,
+    and a touch tooltip. Both use the <code>fl_chart</code> package.
   </p>
-  <div class="callout info">
-    <div class="callout-title">Preview</div>
-    <p>Topics: <code>LineChartData</code>, <code>FlSpot</code>, <code>ExtraLinesData</code> for threshold lines, <code>LineTouchData</code> for tooltips, and <code>BarAreaData</code> for the gradient fill under the sparkline.</p>
+
+  <div class="callout key">
+    <div class="callout-title">Key Concept: fl_chart data model</div>
+    <p><code>FlSpot(x, y)</code> — a single data point. X is the index (0, 1, 2…), Y is the value (0–100).<br>
+    <code>LineChartBarData</code> — one line on the chart. Holds a list of FlSpots + visual config.<br>
+    <code>LineChartData</code> — the full chart config: axes, grid, data lines, touch behavior.<br>
+    <code>ExtraLinesData</code> — horizontal/vertical reference lines drawn on top of everything (used for threshold lines).</p>
+  </div>
+
+  <h2>Sparkline — BedCard Mini Chart</h2>
+  <p>
+    The sparkline shows the last 20 readings as a small trendline at the bottom of
+    each bed card. No labels, no axes — just the shape of the curve in the status color.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/home/widgets/sparkline_chart.dart</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="kw">class</span> <span class="ty">SparklineChart</span> <span class="kw">extends</span> <span class="ty">StatelessWidget</span> {
+  <span class="kw">final</span> <span class="ty">List</span>&lt;<span class="ty">double</span>&gt; readings;
+  <span class="kw">final</span> <span class="ty">int</span> statusCode;
+  <span class="kw">const</span> <span class="ty">SparklineChart</span>({<span class="pk">super</span>.key, <span class="pk">required this</span>.readings, <span class="pk">required this</span>.statusCode});
+
+  <span class="dc">@override</span>
+  <span class="ty">Widget</span> <span class="fn">build</span>(<span class="ty">BuildContext</span> context) {
+    <span class="kw">final</span> color = <span class="fn">statusColor</span>(statusCode);
+
+    <span class="cm">// Convert raw percent values to FlSpot(index, value)</span>
+    <span class="kw">final</span> spots = [
+      <span class="kw">for</span> (<span class="kw">var</span> i = <span class="nm">0</span>; i &lt; readings.length; i++)
+        <span class="ty">FlSpot</span>(i.<span class="fn">toDouble</span>(), readings[i]),
+    ];
+
+    <span class="kw">return</span> <span class="ty">LineChart</span>(
+      <span class="ty">LineChartData</span>(
+        minY: <span class="nm">0</span>, maxY: <span class="nm">100</span>,
+        <span class="cm">// No axes, no grid — pure visual sparkline</span>
+        titlesData: <span class="kw">const</span> <span class="ty">FlTitlesData</span>(<span class="pk">show</span>: <span class="kw">false</span>),
+        gridData: <span class="kw">const</span> <span class="ty">FlGridData</span>(<span class="pk">show</span>: <span class="kw">false</span>),
+        borderData: <span class="ty">FlBorderData</span>(<span class="pk">show</span>: <span class="kw">false</span>),
+        lineTouchData: <span class="kw">const</span> <span class="ty">LineTouchData</span>(<span class="pk">enabled</span>: <span class="kw">false</span>),
+        lineBarsData: [
+          <span class="ty">LineChartBarData</span>(
+            spots: spots,
+            isCurved: <span class="kw">true</span>,
+            curveSmoothness: <span class="nm">0.35</span>,
+            color: color,
+            barWidth: <span class="nm">1.5</span>,
+            dotData: <span class="kw">const</span> <span class="ty">FlDotData</span>(<span class="pk">show</span>: <span class="kw">false</span>),
+            <span class="cm">// Gradient fill below the line — makes it feel like a metric</span>
+            belowBarData: <span class="ty">BarAreaData</span>(
+              show: <span class="kw">true</span>,
+              gradient: <span class="ty">LinearGradient</span>(
+                begin: <span class="ty">Alignment</span>.topCenter,
+                end: <span class="ty">Alignment</span>.bottomCenter,
+                colors: [color.<span class="fn">withAlpha</span>(<span class="nm">60</span>), color.<span class="fn">withAlpha</span>(<span class="nm">0</span>)],
+              ),
+            ),
+          ),
+        ],
+      ),
+      duration: <span class="kw">const</span> <span class="ty">Duration</span>(<span class="pk">milliseconds</span>: <span class="nm">200</span>),
+    );
+  }
+}</pre>
+  </div>
+
+  <h2>History Chart — Full Detail Screen Chart</h2>
+  <p>
+    The history chart on the detail screen has labeled X/Y axes, major gridlines every 25%,
+    and two dashed <code>ExtraLinesData</code> reference lines for the LOW and CRITICAL thresholds.
+    Touch anywhere to see the exact reading and time.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/detail/widgets/history_chart.dart (threshold lines)</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// ExtraLinesData draws horizontal lines at any Y value, on top of the chart.</span>
+<span class="cm">// dashArray: [6, 4] = 6px dash, 4px gap, repeating.</span>
+extraLinesData: <span class="ty">ExtraLinesData</span>(
+  horizontalLines: [
+    <span class="ty">HorizontalLine</span>(
+      y: lowThreshold,
+      color: kStatusAmber.<span class="fn">withAlpha</span>(<span class="nm">180</span>),
+      strokeWidth: <span class="nm">1.5</span>,
+      dashArray: [<span class="nm">6</span>, <span class="nm">4</span>],
+      label: <span class="ty">HorizontalLineLabel</span>(
+        show: <span class="kw">true</span>,
+        alignment: <span class="ty">Alignment</span>.topRight,
+        labelResolver: (_) => <span class="st">'LOW'</span>,
+        style: <span class="ty">TextStyle</span>(<span class="pk">color</span>: kStatusAmber, <span class="pk">fontSize</span>: <span class="nm">10</span>, <span class="pk">fontWeight</span>: <span class="ty">FontWeight</span>.w600),
+      ),
+    ),
+    <span class="ty">HorizontalLine</span>(
+      y: critThreshold,
+      color: kStatusRed.<span class="fn">withAlpha</span>(<span class="nm">180</span>),
+      strokeWidth: <span class="nm">1.5</span>,
+      dashArray: [<span class="nm">6</span>, <span class="nm">4</span>],
+      label: <span class="ty">HorizontalLineLabel</span>(
+        show: <span class="kw">true</span>,
+        alignment: <span class="ty">Alignment</span>.topRight,
+        labelResolver: (_) => <span class="st">'CRIT'</span>,
+        style: <span class="ty">TextStyle</span>(<span class="pk">color</span>: kStatusRed, <span class="pk">fontSize</span>: <span class="nm">10</span>, <span class="pk">fontWeight</span>: <span class="ty">FontWeight</span>.w600),
+      ),
+    ),
+  ],
+),
+
+<span class="cm">// Touch tooltip: shows value + time when user taps a data point.</span>
+lineTouchData: <span class="ty">LineTouchData</span>(
+  touchTooltipData: <span class="ty">LineTouchTooltipData</span>(
+    getTooltipColor: (_) => kSurfaceDark,
+    tooltipRoundedRadius: <span class="nm">8</span>,
+    getTooltipItems: (spots) => spots
+        .<span class="fn">map</span>((s) => <span class="ty">LineTooltipItem</span>(
+              <span class="st">'${s.y.toInt()}%\n'</span>
+              <span class="st">'${timeFmt.format(readings[s.x.toInt()].timestamp)}'</span>,
+              <span class="ty">TextStyle</span>(<span class="pk">color</span>: lineColor, <span class="pk">fontWeight</span>: <span class="ty">FontWeight</span>.w600),
+            ))
+        .<span class="fn">toList</span>(),
+  ),
+),</pre>
+  </div>
+
+  <!-- QUIZ 8 -->
+  <div class="quiz" id="quiz8">
+    <div class="quiz-q">The sparkline disables touch with <code>LineTouchData(enabled: false)</code>. Why, given that the detail screen's chart has touch enabled?</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz8','correct',this)"><span class="opt-key">A</span> The sparkline is 28px tall and lives inside a GestureDetector (the BedCard tap). Enabling touch would intercept card taps without giving enough space to be useful.</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz8','wrong',this)"><span class="opt-key">B</span> fl_chart requires touch to be disabled on StatelessWidgets.</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz8','wrong',this)"><span class="opt-key">C</span> Touch would conflict with the AnimatedBuilder driving the CRITICAL border pulse.</div>
+    <div class="quiz-feedback" id="quiz8-feedback"></div>
   </div>
 </section>
 
-<!-- ══════════════════ CH 9: NOTIFICATIONS (placeholder) ══════════════════ -->
+<!-- ══════════════════ CH 9: HERO ANIMATIONS ══════════════════ -->
 <section class="chapter" id="ch9">
-  <div class="chapter-tag">Chapter 9 — Coming Soon</div>
-  <h1>Notifications &amp; Vibration</h1>
+  <div class="chapter-tag">Chapter 9</div>
+  <h1>Hero Animations — Shared-Element Transitions</h1>
   <p class="chapter-intro">
-    This chapter covers <code>flutter_local_notifications</code>, custom vibration patterns,
-    the broadcast stream for notification taps, cold-launch handling, and the
-    iOS background polling limitation.
+    A <strong>Hero</strong> animation is when an element visually flies from one screen
+    to another. In IV Sentinel, the FluidGauge on the bed card grows and flies
+    into the header of the detail screen when you tap a card. This is one of the
+    most premium-feeling interactions in mobile apps.
   </p>
-  <div class="callout warn">
-    <div class="callout-title">iOS limitation preview</div>
-    <p>On iOS, Dart isolates are suspended when the app is backgrounded. The polling Timer stops within ~30 seconds of the app leaving the foreground. True background notifications on iOS require a server + APNs push. This chapter explains the architecture for that.</p>
+
+  <div class="callout key">
+    <div class="callout-title">Key Concept: Hero widget</div>
+    <p>Wrap the <em>same</em> widget on <em>both screens</em> with <code>Hero(tag: 'same-string')</code>. Flutter automatically animates between them during navigation. The tag must be unique across all currently visible Heroes.</p>
+  </div>
+
+  <h2>Step 1 — Tag the gauge on the BedCard</h2>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/home/widgets/bed_card.dart</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// Hero tag uses the bed ID — unique per card so multiple heroes don't conflict.</span>
+<span class="ty">Hero</span>(
+  tag: <span class="st">'gauge-${widget.config.id}'</span>,
+  child: <span class="ty">FluidGauge</span>(
+    percent: reading?.<span class="pk">percent</span> ?? <span class="nm">0</span>,
+    statusCode: statusCode,
+    isLoading: reading == <span class="kw">null</span>,
+    size: <span class="nm">100</span>,
+  ),
+)</pre>
+  </div>
+
+  <h2>Step 2 — Match the tag on the detail screen</h2>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/detail/bed_detail_screen.dart — _GradientHeader</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// Same tag as the card — Flutter connects the two and animates between them.</span>
+<span class="cm">// The gauge grows from 100px (card) to 140px (detail header) during the transition.</span>
+<span class="ty">Hero</span>(
+  tag: <span class="st">'gauge-${config.id}'</span>,
+  child: <span class="ty">FluidGauge</span>(
+    percent: percent,
+    statusCode: statusCode,
+    size: <span class="nm">140</span>,  <span class="cm">// larger on the detail screen</span>
+  ),
+)</pre>
+  </div>
+
+  <div class="callout tip">
+    <div class="callout-title">Hero animation is free</div>
+    <p>You don't write any animation code. Flutter's navigation framework detects matching Hero tags, clips the outgoing screen, and morphs the widget between its two positions. The only requirement: the widget must be a <code>StatelessWidget</code> or have stable state between screens.</p>
+  </div>
+
+  <h2>The Gradient Detail Header</h2>
+  <p>
+    The header uses <code>extendBodyBehindAppBar: true</code> and a transparent
+    AppBar so the gradient can bleed all the way to the top of the screen including
+    under the status bar. The gradient tints the status color subtly at the top
+    and fades to the surface color at the bottom.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/features/detail/bed_detail_screen.dart — Scaffold</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="ty">Scaffold</span>(
+  <span class="cm">// Allows body content to flow behind the AppBar (so gradient shows through)</span>
+  extendBodyBehindAppBar: <span class="kw">true</span>,
+  appBar: <span class="ty">AppBar</span>(
+    backgroundColor: <span class="ty">Colors</span>.transparent,
+    elevation: <span class="nm">0</span>,
+    title: <span class="ty">Text</span>(config.name),
+    ...
+  ),
+  body: <span class="ty">ListView</span>(
+    padding: <span class="ty">EdgeInsets</span>.zero, <span class="cm">// header handles its own top padding</span>
+    children: [
+      <span class="ty">_GradientHeader</span>(...),
+      ...
+    ],
+  ),
+)</pre>
+  </div>
+
+  <!-- QUIZ 9 -->
+  <div class="quiz" id="quiz9">
+    <div class="quiz-q">You have 4 bed cards all on screen at once. Each one has a Hero with tag <code>'gauge-${config.id}'</code>. What happens if two beds have the same ID?</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz9','correct',this)"><span class="opt-key">A</span> Flutter throws an assertion error: "There are multiple heroes that share the same tag." Tags must be unique per screen.</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz9','wrong',this)"><span class="opt-key">B</span> Flutter picks one of them arbitrarily and ignores the other.</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz9','wrong',this)"><span class="opt-key">C</span> The animation plays twice, once for each matching Hero.</div>
+    <div class="quiz-feedback" id="quiz9-feedback"></div>
   </div>
 </section>
 
@@ -1323,7 +1545,7 @@ function setActive(el) {
 }
 
 // ── Progress tracking ──
-const totalChapters = 8;
+const totalChapters = 9;
 let visited = new Set();
 
 const observer = new IntersectionObserver((entries) => {
@@ -1371,6 +1593,8 @@ const answers = {
   quiz4: { correct: 'Because BedConfig is immutable (@immutable + final fields). You can\'t change fields after creation — you make a new object with the changed values.', feedback: 'Correct! Immutability is intentional. When Riverpod detects that state changed (via ==), it notifies watchers. If you mutated an object in place, the old and new references would be the same object and Riverpod would not detect the change.' },
   quiz5: { correct: 'Future.wait: ~2s (all run at once). Sequential await: ~8s (one after another)', feedback: 'Correct! Future.wait starts all 4 HTTP requests simultaneously and waits for all of them to complete. The total time is bounded by the slowest single request (~2s), not the sum of all requests (~8s). This is critical for keeping the poll cycle within the 15-second ThingSpeak window.' },
   quiz7: { correct: '12 o'clock (top center) — 50% of the 270° sweep from 7:30 lands at the top', feedback: 'Correct! Starting at 7:30 (135°) and sweeping 50% of 270° = 135° clockwise. 135° + 135° = 270° from 3 o\'clock. 270° in Flutter canvas coordinates = 12 o\'clock (top center). The gauge fills through left→top at 50%.' },
+  quiz8: { correct: 'The sparkline is 28px tall and lives inside a GestureDetector (the BedCard tap). Enabling touch would intercept card taps without giving enough space to be useful.', feedback: 'Correct! A 28px tall chart can\'t register meaningful horizontal drag-to-select gestures. Enabling LineTouchData on it would swallow tap events from the GestureDetector that wraps the whole BedCard, breaking navigation to the detail screen.' },
+  quiz9: { correct: 'Flutter throws an assertion error: "There are multiple heroes that share the same tag." Tags must be unique per screen.', feedback: 'Correct! This is why we use config.id (the unique bed identifier) in the tag rather than something like \'gauge\'. Duplicate Hero tags are a common bug when you have dynamic lists — always scope the tag to a unique identifier.' },
 };
 
 function checkQuiz(quizId, result, el) {
