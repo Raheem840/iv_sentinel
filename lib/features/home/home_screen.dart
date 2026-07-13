@@ -31,9 +31,16 @@ class HomeScreen extends ConsumerWidget {
       }
     });
 
+    // Count critical beds for the AppBar badge
+    final criticalCount = readingsAsync.whenData(
+      (readings) => settings.beds
+          .where((b) => readings[b.id]?.isCritical == true)
+          .length,
+    ).value ?? 0;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('IV Sentinel'),
+        title: _AppBarTitle(criticalCount: criticalCount),
         actions: [
           // Manual refresh button
           readingsAsync.isLoading
@@ -132,6 +139,47 @@ class HomeScreen extends ConsumerWidget {
           );
         },
       ),
+    );
+  }
+}
+
+// ── AppBar title with animated critical badge ─────────────────────────────────
+
+class _AppBarTitle extends StatelessWidget {
+  final int criticalCount;
+  const _AppBarTitle({required this.criticalCount});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('IV Sentinel'),
+        if (criticalCount > 0) ...[
+          const SizedBox(width: 8),
+          // Animated badge that appears when any bed is CRITICAL
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: Container(
+              key: ValueKey(criticalCount),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: kStatusRed,
+                borderRadius: BorderRadius.circular(99),
+              ),
+              child: Text(
+                '$criticalCount CRIT',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

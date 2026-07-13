@@ -134,13 +134,17 @@ class _BedCardState extends State<BedCard> with SingleTickerProviderStateMixin {
               const SizedBox(height: 8),
 
               // ── Gauge: the visual hero of the card ──
+              // Hero tag enables a smooth shared-element transition to the detail screen.
               Expanded(
                 child: Center(
-                  child: FluidGauge(
-                    percent: reading?.percent ?? 0,
-                    statusCode: statusCode,
-                    isLoading: reading == null,
-                    size: 100,
+                  child: Hero(
+                    tag: 'gauge-${widget.config.id}',
+                    child: FluidGauge(
+                      percent: reading?.percent ?? 0,
+                      statusCode: statusCode,
+                      isLoading: reading == null,
+                      size: 100,
+                    ),
                   ),
                 ),
               ),

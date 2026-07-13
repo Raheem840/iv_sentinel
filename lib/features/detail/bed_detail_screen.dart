@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../core/models/bed_config.dart';
+import '../../core/models/bed_reading.dart';
 import '../../core/providers/bed_history_provider.dart';
 import '../../core/providers/bed_readings_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/status_color.dart';
+import '../home/widgets/fluid_gauge.dart';
 import '../home/widgets/status_badge.dart';
 import 'widgets/history_chart.dart';
 
@@ -17,104 +19,237 @@ class BedDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final historyAsync = ref.watch(bedHistoryProvider(config));
-    // Also watch live readings to keep the header current % up-to-date
     final liveReading = ref
         .watch(bedReadingsProvider)
         .whenData((m) => m[config.id])
         .value;
 
-    final theme = Theme.of(context);
     final statusCode = liveReading?.statusCode ?? 0;
     final color = statusColor(statusCode);
-    final timeFmt = DateFormat('MMM d, HH:mm');
+    final percent = liveReading?.percent ?? 0;
+
+    // Compute simple trend from history (last reading vs reading 10 steps ago)
+    final historyData = historyAsync.valueOrNull;
+    final trend = _computeTrend(historyData);
 
     return Scaffold(
+      // Transparent AppBar so gradient bleeds to top
+      backgroundColor: kBackgroundDark,
+      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(config.name),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: kTextPrimaryDark),
+        title: Text(config.name,
+            style: const TextStyle(color: kTextPrimaryDark, fontWeight: FontWeight.w700)),
         actions: [
-          // Manual refresh — invalidates the history provider, triggering a refetch
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(Icons.refresh_rounded, color: kTextPrimaryDark),
             tooltip: 'Refresh history',
             onPressed: () => ref.invalidate(bedHistoryProvider(config)),
           ),
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: EdgeInsets.zero,
         children: [
-          // ── Live reading header card ──
-          _HeaderCard(
-            percent: liveReading?.percent,
+          // ── Gradient hero header ──
+          _GradientHeader(
+            config: config,
+            percent: percent,
             statusCode: statusCode,
             color: color,
             timestamp: liveReading?.timestamp,
-            timeFmt: timeFmt,
-            theme: theme,
+            trend: trend,
           ),
 
-          const SizedBox(height: 24),
-
-          // ── Thresholds info row ──
-          Row(
-            children: [
-              _ThresholdChip(
-                label: 'LOW threshold',
-                value: '${config.lowThreshold.toInt()}%',
-                color: kStatusAmber,
-              ),
-              const SizedBox(width: 12),
-              _ThresholdChip(
-                label: 'CRITICAL threshold',
-                value: '${config.critThreshold.toInt()}%',
-                color: kStatusRed,
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          Text('History (last 60 readings)', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text('Channel ${config.channelId}', style: theme.textTheme.bodySmall),
-          const SizedBox(height: 16),
-
-          // ── History chart ──
-          SizedBox(
-            height: 260,
-            child: historyAsync.when(
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: kStatusGreen),
-              ),
-              error: (e, _) => _ChartError(
-                message: e.toString(),
-                onRetry: () => ref.invalidate(bedHistoryProvider(config)),
-              ),
-              data: (readings) => readings.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No history available yet',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    )
-                  : HistoryChart(
-                      readings: readings,
-                      lowThreshold: config.lowThreshold,
-                      critThreshold: config.critThreshold,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Threshold chips ──
+                Row(
+                  children: [
+                    _ThresholdChip(
+                      label: 'LOW alert',
+                      value: '${config.lowThreshold.toInt()}%',
+                      color: kStatusAmber,
                     ),
+                    const SizedBox(width: 12),
+                    _ThresholdChip(
+                      label: 'CRITICAL alert',
+                      value: '${config.critThreshold.toInt()}%',
+                      color: kStatusRed,
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 28),
+
+                // ── History section header ──
+                Row(
+                  children: [
+                    const Text('History',
+                        style: TextStyle(
+                          color: kTextPrimaryDark,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        )),
+                    const Spacer(),
+                    Text('last 60 readings',
+                        style: TextStyle(color: kTextSecondaryDark, fontSize: 12)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // ── History chart ──
+                SizedBox(
+                  height: 260,
+                  child: historyAsync.when(
+                    loading: () => const Center(
+                      child: CircularProgressIndicator(color: kStatusGreen),
+                    ),
+                    error: (e, _) => _ChartError(
+                      message: e.toString(),
+                      onRetry: () => ref.invalidate(bedHistoryProvider(config)),
+                    ),
+                    data: (readings) => readings.isEmpty
+                        ? Center(
+                            child: Text(
+                              'No history available yet',
+                              style: TextStyle(color: kTextSecondaryDark),
+                            ),
+                          )
+                        : HistoryChart(
+                            readings: readings,
+                            lowThreshold: config.lowThreshold,
+                            critThreshold: config.critThreshold,
+                          ),
+                  ),
+                ),
+
+                const SizedBox(height: 28),
+
+                // ── Channel info section ──
+                const Text('Channel Info',
+                    style: TextStyle(
+                      color: kTextPrimaryDark,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    )),
+                const SizedBox(height: 12),
+
+                _InfoCard(
+                  children: [
+                    _InfoRow(label: 'Channel ID', value: config.channelId),
+                    _InfoRow(
+                      label: 'API Key',
+                      value: config.apiKey.length >= 4
+                          ? '${config.apiKey.substring(0, 4)}••••••••'
+                          : '••••••••',
+                    ),
+                    _InfoRow(label: 'Poll interval', value: 'auto'),
+                  ],
+                ),
+
+                const SizedBox(height: 32),
+              ],
             ),
           ),
+        ],
+      ),
+    );
+  }
 
-          const SizedBox(height: 24),
+  // Compare last reading to one 10 steps earlier to estimate direction.
+  double? _computeTrend(List<BedReading>? history) {
+    if (history == null || history.length < 10) return null;
+    return history.last.percent - history[history.length - 10].percent;
+  }
+}
 
-          // ── Channel info ──
-          _InfoRow(label: 'Channel ID', value: config.channelId),
-          // Guard against keys shorter than 4 chars (e.g. during misconfiguration)
-          _InfoRow(
-            label: 'API Key',
-            value: config.apiKey.length >= 4
-                ? '${config.apiKey.substring(0, 4)}••••••••'
-                : '••••••••',
+// ── Gradient hero header ──────────────────────────────────────────────────────
+
+class _GradientHeader extends StatelessWidget {
+  final BedConfig config;
+  final double percent;
+  final int statusCode;
+  final Color color;
+  final DateTime? timestamp;
+  final double? trend;
+
+  const _GradientHeader({
+    required this.config,
+    required this.percent,
+    required this.statusCode,
+    required this.color,
+    required this.timestamp,
+    required this.trend,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final timeFmt = DateFormat('MMM d, HH:mm');
+    final topPad = MediaQuery.of(context).padding.top + kToolbarHeight;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, topPad + 16, 24, 32),
+      decoration: BoxDecoration(
+        // Gradient from subtle status-color tint at top to surface at bottom
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            color.withAlpha(28),
+            kSurfaceDark.withAlpha(255),
+          ],
+          stops: const [0.0, 1.0],
+        ),
+        border: Border(
+          bottom: BorderSide(color: kBorderDark, width: 1),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Hero gauge — shared element with BedCard
+          Hero(
+            tag: 'gauge-${config.id}',
+            child: FluidGauge(
+              percent: percent,
+              statusCode: statusCode,
+              size: 140,
+            ),
+          ),
+          const SizedBox(width: 24),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                StatusBadge(statusCode: statusCode),
+                const SizedBox(height: 12),
+
+                // Trend indicator
+                if (trend != null) _TrendRow(trend: trend!),
+                if (trend != null) const SizedBox(height: 10),
+
+                // Updated timestamp
+                if (timestamp != null) ...[
+                  Text('Updated',
+                      style: TextStyle(color: kTextSecondaryDark, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text(
+                    timeFmt.format(timestamp!.toLocal()),
+                    style: const TextStyle(
+                      color: kTextPrimaryDark,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -122,62 +257,33 @@ class BedDetailScreen extends ConsumerWidget {
   }
 }
 
-// ── Header card with the current live reading ─────────────────────────────────
+// ── Trend indicator ───────────────────────────────────────────────────────────
 
-class _HeaderCard extends StatelessWidget {
-  final double? percent;
-  final int statusCode;
-  final Color color;
-  final DateTime? timestamp;
-  final DateFormat timeFmt;
-  final ThemeData theme;
-
-  const _HeaderCard({
-    required this.percent,
-    required this.statusCode,
-    required this.color,
-    required this.timestamp,
-    required this.timeFmt,
-    required this.theme,
-  });
+class _TrendRow extends StatelessWidget {
+  final double trend;
+  const _TrendRow({required this.trend});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withAlpha(80), width: 1.5),
-      ),
-      child: Row(
-        children: [
-          // Big % reading
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Text(
-              percent != null ? '${percent!.toInt()}%' : '—',
-              key: ValueKey(percent?.toInt()),
-              style: theme.textTheme.displayLarge?.copyWith(color: color),
-            ),
-          ),
-          const SizedBox(width: 20),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              StatusBadge(statusCode: statusCode),
-              const SizedBox(height: 8),
-              if (timestamp != null)
-                Text(
-                  'Updated ${timeFmt.format(timestamp!.toLocal())}',
-                  style: theme.textTheme.bodySmall,
-                ),
-              const SizedBox(height: 4),
-              Text('Fluid level', style: theme.textTheme.bodySmall),
-            ],
-          ),
-        ],
-      ),
+    final isRising = trend > 0.5;
+    final isFalling = trend < -0.5;
+    final color = isFalling ? kStatusAmber : kStatusGreen;
+    final icon = isRising
+        ? Icons.trending_up_rounded
+        : isFalling
+            ? Icons.trending_down_rounded
+            : Icons.trending_flat_rounded;
+    final label = trend > 0
+        ? '+${trend.abs().toStringAsFixed(1)}% (10 readings)'
+        : '${trend.toStringAsFixed(1)}% (10 readings)';
+
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 4),
+        Text(label,
+            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+      ],
     );
   }
 }
@@ -199,22 +305,50 @@ class _ThresholdChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: color.withAlpha(20),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color.withAlpha(60)),
+          color: color.withAlpha(18),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withAlpha(55)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label,
-                style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 2),
+                style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600,
+                    letterSpacing: 0.3)),
+            const SizedBox(height: 4),
             Text(value,
-                style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.w700)),
+                style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w800)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Grouped info card ─────────────────────────────────────────────────────────
+
+class _InfoCard extends StatelessWidget {
+  final List<Widget> children;
+  const _InfoCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: kSurfaceDark,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kBorderDark),
+      ),
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[
+            children[i],
+            if (i < children.length - 1)
+              Divider(height: 1, color: kBorderDark),
+          ],
+        ],
       ),
     );
   }
@@ -230,14 +364,16 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: theme.textTheme.bodySmall),
-          Text(value, style: theme.textTheme.bodyMedium),
+          Text(label,
+              style: const TextStyle(color: kTextSecondaryDark, fontSize: 13)),
+          Text(value,
+              style: const TextStyle(
+                  color: kTextPrimaryDark, fontSize: 13, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -259,8 +395,12 @@ class _ChartError extends StatelessWidget {
       children: [
         const Icon(Icons.error_outline, color: kStatusAmber, size: 36),
         const SizedBox(height: 8),
-        Text('Failed to load history', style: Theme.of(context).textTheme.bodyMedium),
-        TextButton(onPressed: onRetry, child: const Text('Retry')),
+        Text('Failed to load history',
+            style: const TextStyle(color: kTextPrimaryDark, fontSize: 14)),
+        TextButton(
+          onPressed: onRetry,
+          child: const Text('Retry', style: TextStyle(color: kStatusGreen)),
+        ),
       ],
     );
   }
