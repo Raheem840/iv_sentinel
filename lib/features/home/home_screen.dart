@@ -4,6 +4,7 @@ import '../../core/providers/bed_readings_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../features/settings/bed_config_notifier.dart';
 import 'widgets/bed_card.dart';
+import 'widgets/critical_banner.dart';
 
 // Keeps a rolling buffer of the last 20 readings per bed for sparklines.
 // Stored here (not in Riverpod) because it's purely a display concern.
@@ -72,30 +73,61 @@ class HomeScreen extends ConsumerWidget {
         data: (readings) {
           if (settings.beds.isEmpty) return const _EmptyState();
 
+          // Identify beds currently in CRITICAL for the banner
+          final criticalBeds = settings.beds
+              .where((b) => readings[b.id]?.isCritical == true)
+              .toList();
+
           return RefreshIndicator(
             onRefresh: () => ref.read(bedReadingsProvider.notifier).refresh(),
-            child: GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 0.85,
-              ),
-              itemCount: settings.beds.length,
-              itemBuilder: (context, i) {
-                final config = settings.beds[i];
-                return BedCard(
-                  config: config,
-                  reading: readings[config.id],
-                  history: List.of(_historyBuffer[config.id] ?? []),
-                  onTap: () => Navigator.pushNamed(
-                    context,
-                    '/detail',
-                    arguments: config,
+            child: CustomScrollView(
+              slivers: [
+                // Sticky critical alert banner (hidden when no beds are critical)
+                SliverToBoxAdapter(
+                  child: AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: CriticalBanner(
+                      criticalBeds: criticalBeds,
+                      readings: readings,
+                      onTap: (config) => Navigator.pushNamed(
+                        context,
+                        '/detail',
+                        arguments: config,
+                      ),
+                    ),
                   ),
-                );
-              },
+                ),
+                // Bed grid
+                SliverPadding(
+                  padding: const EdgeInsets.all(16),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 0.80, // taller cards for the gauge
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        final config = settings.beds[i];
+                        return BedCard(
+                          config: config,
+                          reading: readings[config.id],
+                          history: List.of(_historyBuffer[config.id] ?? []),
+                          onTap: () => Navigator.pushNamed(
+                            context,
+                            '/detail',
+                            arguments: config,
+                          ),
+                        );
+                      },
+                      childCount: settings.beds.length,
+                    ),
+                  ),
+                ),
+              ],
             ),
           );
         },

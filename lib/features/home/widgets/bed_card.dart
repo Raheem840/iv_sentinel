@@ -1,16 +1,18 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../core/models/bed_config.dart';
 import '../../../core/models/bed_reading.dart';
 import '../../../core/theme/status_color.dart';
+import 'fluid_gauge.dart';
 import 'sparkline_chart.dart';
 import 'status_badge.dart';
 
-/// A single bed monitoring card shown in the home grid.
-/// Pulses its border when the bed is in CRITICAL status.
+/// Premium bed monitoring card with a circular arc gauge as the visual centerpiece.
+/// Design reference: Oura Ring readiness card, Apple Health metric cards.
 class BedCard extends StatefulWidget {
   final BedConfig config;
-  final BedReading? reading; // null while first fetch is loading
-  final List<double> history; // recent % readings for sparkline
+  final BedReading? reading;
+  final List<double> history;
   final VoidCallback onTap;
 
   const BedCard({
@@ -26,7 +28,6 @@ class BedCard extends StatefulWidget {
 }
 
 class _BedCardState extends State<BedCard> with SingleTickerProviderStateMixin {
-  // Animation controller for the CRITICAL border pulse
   late AnimationController _pulse;
   late Animation<double> _pulseAnim;
 
@@ -46,10 +47,7 @@ class _BedCardState extends State<BedCard> with SingleTickerProviderStateMixin {
   @override
   void didUpdateWidget(BedCard old) {
     super.didUpdateWidget(old);
-    // Re-evaluate pulse whenever status changes
-    if (old.reading?.statusCode != widget.reading?.statusCode) {
-      _updatePulse();
-    }
+    if (old.reading?.statusCode != widget.reading?.statusCode) _updatePulse();
   }
 
   void _updatePulse() {
@@ -70,84 +68,94 @@ class _BedCardState extends State<BedCard> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final reading = widget.reading;
-    final isCritical = reading?.isCritical ?? false;
     final statusCode = reading?.statusCode ?? 0;
     final color = statusColor(statusCode);
+    final isCritical = reading?.isCritical ?? false;
     final theme = Theme.of(context);
 
     return GestureDetector(
       onTap: widget.onTap,
       child: AnimatedBuilder(
         animation: _pulseAnim,
-        builder: (context, child) {
-          return Container(
-            decoration: BoxDecoration(
-              color: theme.cardTheme.color,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                // Border glows status color; pulses opacity if CRITICAL
-                color: color.withAlpha(
-                  isCritical ? ((_pulseAnim.value) * 200).toInt() : 60,
-                ),
-                width: isCritical ? 1.5 : 1.0,
+        builder: (context, child) => Container(
+          decoration: BoxDecoration(
+            color: theme.cardTheme.color,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: color.withAlpha(
+                isCritical ? (_pulseAnim.value * 220).toInt() : 45,
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: isCritical
-                      ? color.withAlpha((_pulseAnim.value * 60).toInt())
-                      : Colors.black.withAlpha(40),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              width: isCritical ? 1.5 : 1.0,
             ),
-            child: child,
-          );
-        },
+            boxShadow: [
+              BoxShadow(
+                color: isCritical
+                    ? color.withAlpha((_pulseAnim.value * 55).toInt())
+                    : Colors.black.withAlpha(35),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: child,
+        ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // ── Header row: bed name + status badge ──
+              // ── Header: bed name left, status badge right ──
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: Text(
                       widget.config.name,
-                      style: theme.textTheme.titleMedium,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (reading != null) StatusBadge(statusCode: statusCode),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: reading != null
+                        ? StatusBadge(
+                            key: ValueKey(statusCode),
+                            statusCode: statusCode,
+                            small: true,
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ),
 
               const SizedBox(height: 8),
 
-              // ── Big % numeral ──
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 300),
-                child: Text(
-                  reading != null ? '${reading.percent.toInt()}%' : '—',
-                  key: ValueKey(reading?.percent.toInt()),
-                  style: theme.textTheme.displayMedium?.copyWith(color: color),
+              // ── Gauge: the visual hero of the card ──
+              Expanded(
+                child: Center(
+                  child: FluidGauge(
+                    percent: reading?.percent ?? 0,
+                    statusCode: statusCode,
+                    isLoading: reading == null,
+                    size: 100,
+                  ),
                 ),
               ),
 
-              const Spacer(),
+              const SizedBox(height: 8),
 
-              // ── Bottom row: sparkline + timestamp ──
+              // ── Footer: sparkline left, timestamp right ──
               Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Sparkline takes 55% of card width
                   Expanded(
-                    flex: 55,
+                    flex: 6,
                     child: SizedBox(
-                      height: 36,
-                      child: widget.history.length > 1
+                      height: 28,
+                      child: widget.history.length > 2
                           ? SparklineChart(
                               readings: widget.history,
                               statusCode: statusCode,
@@ -155,22 +163,21 @@ class _BedCardState extends State<BedCard> with SingleTickerProviderStateMixin {
                           : const SizedBox.shrink(),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  // Timestamp
-                  Expanded(
-                    flex: 45,
-                    child: reading != null
-                        ? _TimestampLabel(timestamp: reading.timestamp)
-                        : const SizedBox.shrink(),
-                  ),
+                  const SizedBox(width: 6),
+                  if (reading != null)
+                    _TimestampLabel(timestamp: reading.timestamp),
                 ],
               ),
 
-              // ── Thresholds hint ──
+              // ── Threshold micro-label ──
               const SizedBox(height: 4),
               Text(
-                'L ${widget.config.lowThreshold.toInt()}% · C ${widget.config.critThreshold.toInt()}%',
-                style: theme.textTheme.bodySmall?.copyWith(fontSize: 10),
+                'L ${widget.config.lowThreshold.toInt()}%  ·  C ${widget.config.critThreshold.toInt()}%',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 9,
+                  letterSpacing: 0.3,
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -180,7 +187,7 @@ class _BedCardState extends State<BedCard> with SingleTickerProviderStateMixin {
   }
 }
 
-/// Shows how long ago the last reading arrived, updating every second.
+/// Relative timestamp that refreshes on a Timer (properly cancellable).
 class _TimestampLabel extends StatefulWidget {
   final DateTime timestamp;
   const _TimestampLabel({required this.timestamp});
@@ -191,18 +198,21 @@ class _TimestampLabel extends StatefulWidget {
 
 class _TimestampLabelState extends State<_TimestampLabel> {
   late String _label;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
     _label = _format();
-    // Refresh label every 10 seconds
-    Future.doWhile(() async {
-      await Future.delayed(const Duration(seconds: 10));
-      if (!mounted) return false;
-      setState(() => _label = _format());
-      return true;
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (mounted) setState(() => _label = _format());
     });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel(); // properly cancellable — no Future.doWhile leak
+    super.dispose();
   }
 
   String _format() {
@@ -213,11 +223,9 @@ class _TimestampLabelState extends State<_TimestampLabel> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Text(
-      _label,
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10),
-      textAlign: TextAlign.right,
-    );
-  }
+  Widget build(BuildContext context) => Text(
+        _label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 9),
+        textAlign: TextAlign.right,
+      );
 }
