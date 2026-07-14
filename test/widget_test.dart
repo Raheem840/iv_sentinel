@@ -6,7 +6,7 @@ import 'package:iv_sentinel/main.dart';
 void main() {
   testWidgets('app renders without crashing', (tester) async {
     await tester.pumpWidget(
-      const ProviderScope(child: IvSentinelApp()),
+      ProviderScope(child: IvSentinelApp()),
     );
     // First frame: app shell loads (may show loading or empty state)
     expect(find.byType(MaterialApp), findsOneWidget);
