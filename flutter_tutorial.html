@@ -460,7 +460,6 @@
     <a class="nav-item" href="#ch9" onclick="setActive(this)">
       <span class="num">9</span> Hero Animations
     </a>
-    <div class="nav-section">Coming Soon</div>
     <a class="nav-item" href="#ch10" onclick="setActive(this)">
       <span class="num">10</span> Notifications &amp; Alerts
     </a>
@@ -1535,6 +1534,206 @@ lineTouchData: <span class="ty">LineTouchData</span>(
   </div>
 </section>
 
+<!-- ══════════════════ CH 10: NOTIFICATIONS ══════════════════ -->
+<section class="chapter" id="ch10">
+  <div class="chapter-tag">Chapter 10</div>
+  <h1>Notifications &amp; Vibration</h1>
+  <p class="chapter-intro">
+    When a bed crosses into CRITICAL, the nurse's phone must alert them even if
+    they're looking at a different screen. IV Sentinel does this with two signals:
+    a custom vibration pattern and a local push notification that deep-links
+    directly to the affected bed when tapped.
+  </p>
+
+  <div class="callout key">
+    <div class="callout-title">Key Concepts</div>
+    <p><strong>Local notification</strong> — fired from the device itself, no server required. Works while the app is foregrounded or backgrounded (Android). <br>
+    <strong>Deep link</strong> — a notification tap that opens a specific screen rather than just the home screen.<br>
+    <strong>Singleton</strong> — one shared instance of a class. <code>AlertService.instance</code> is accessible from anywhere without passing it through providers.</p>
+  </div>
+
+  <h2>AlertService — The Singleton</h2>
+  <p>
+    <code>AlertService</code> wraps two packages: <code>flutter_local_notifications</code>
+    for the notification and <code>vibration</code> for the haptic pattern.
+    It's a singleton so the polling provider and the notification tap handler
+    both talk to the same instance.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/core/services/alert_service.dart — structure</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="kw">class</span> <span class="ty">AlertService</span> {
+  <span class="cm">// static final = one instance, created once, shared everywhere</span>
+  <span class="kw">static final</span> <span class="ty">AlertService</span> instance = <span class="ty">AlertService</span>._();
+  <span class="ty">AlertService</span>._(); <span class="cm">// private constructor prevents "new AlertService()"</span>
+
+  <span class="kw">final</span> _plugin = <span class="ty">FlutterLocalNotificationsPlugin</span>();
+
+  <span class="cm">// broadcast() = multiple listeners can subscribe (vs single-subscription)</span>
+  <span class="kw">final</span> _tapStream = <span class="ty">StreamController</span>&lt;<span class="ty">String</span>&gt;.<span class="fn">broadcast</span>();
+
+  <span class="cm">// Stores a tap that fires BEFORE any listener subscribes (cold-launch case)</span>
+  <span class="ty">String</span>? _pendingTapPayload;
+}</pre>
+  </div>
+
+  <h2>Initialization</h2>
+  <p>
+    <code>init()</code> is called once in <code>main()</code>, before <code>runApp()</code>.
+    This registers the tap handler so it's ready even if a notification fires
+    immediately on app launch.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/core/services/alert_service.dart — init()</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="ty">Future</span>&lt;<span class="kw">void</span>&gt; <span class="fn">init</span>() <span class="kw">async</span> {
+  <span class="kw">const</span> androidInit = <span class="ty">AndroidInitializationSettings</span>(<span class="st">'@mipmap/ic_launcher'</span>);
+  <span class="kw">await</span> _plugin.<span class="fn">initialize</span>(
+    <span class="kw">const</span> <span class="ty">InitializationSettings</span>(<span class="pk">android</span>: androidInit),
+
+    <span class="cm">// Called when user taps the notification — from here we navigate to the bed.</span>
+    onDidReceiveNotificationResponse: (details) {
+      <span class="kw">if</span> (details.payload == <span class="kw">null</span>) <span class="kw">return</span>;
+
+      <span class="kw">if</span> (_tapStream.hasListener) {
+        <span class="cm">// App is running — stream listener in main.dart handles it</span>
+        _tapStream.<span class="fn">add</span>(details.payload!);
+      } <span class="kw">else</span> {
+        <span class="cm">// Cold launch: no listener yet — store for initState to pick up</span>
+        _pendingTapPayload = details.payload;
+      }
+    },
+  );
+}</pre>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-title">The cold-launch problem</div>
+    <p>When the user taps a notification and the app is fully closed, Android launches the app fresh. <code>onDidReceiveNotificationResponse</code> fires <em>before</em> any widget's <code>initState</code> runs — so there's no listener on the stream yet. Without the <code>_pendingTapPayload</code> store, the tap is silently lost and the nurse lands on the home screen instead of the critical bed.</p>
+  </div>
+
+  <h2>Firing Alerts — Transition Detection</h2>
+  <p>
+    Alerts should only fire when a bed <em>transitions</em> into a worse state,
+    not on every poll. The provider tracks the previous status per bed and
+    compares it on each fetch.
+  </p>
+
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/core/providers/bed_readings_provider.dart — _poll()</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// _prevStatus tracks what each bed's statusCode was on the previous poll.</span>
+<span class="kw">final</span> <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">int</span>&gt; _prevStatus = {};
+
+<span class="ty">Future</span>&lt;<span class="kw">void</span>&gt; <span class="fn">_poll</span>() <span class="kw">async</span> {
+  <span class="kw">final</span> settings = ref.<span class="fn">read</span>(appSettingsProvider);
+  <span class="kw">final</span> readings = <span class="kw">await</span> <span class="fn">_fetchAll</span>();
+
+  <span class="kw">for</span> (<span class="kw">final</span> bed <span class="kw">in</span> settings.beds) {
+    <span class="kw">final</span> reading = readings[bed.id];
+    <span class="kw">if</span> (reading == <span class="kw">null</span>) <span class="kw">continue</span>;
+
+    <span class="kw">final</span> prev = _prevStatus[bed.id] ?? <span class="nm">0</span>;
+    <span class="kw">final</span> curr = reading.statusCode;
+
+    <span class="cm">// Only alert on WORSENING transitions — not on every poll, not on recovery</span>
+    <span class="kw">if</span> (curr == <span class="nm">2</span> && prev != <span class="nm">2</span>) {
+      <span class="kw">await</span> <span class="ty">AlertService</span>.instance.<span class="fn">fireCritical</span>(
+        bed.name, reading.percent.<span class="fn">toInt</span>(), bed.id,
+        notify: settings.notificationsEnabled,
+        vibrate: settings.vibrationEnabled,
+      );
+    } <span class="kw">else if</span> (curr == <span class="nm">1</span> && prev == <span class="nm">0</span>) {
+      <span class="kw">await</span> <span class="ty">AlertService</span>.instance.<span class="fn">fireLow</span>(
+        bed.name, reading.percent.<span class="fn">toInt</span>(), bed.id,
+        notify: settings.notificationsEnabled,
+        vibrate: settings.vibrationEnabled,
+      );
+    }
+
+    _prevStatus[bed.id] = curr; <span class="cm">// remember for next poll</span>
+  }
+
+  state = <span class="ty">AsyncData</span>(readings);
+}</pre>
+  </div>
+
+  <h2>Vibration Patterns</h2>
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/core/services/alert_service.dart — _vibrate()</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// Pattern: [delay, vibrate, pause, vibrate, pause, vibrate, ...]</span>
+<span class="cm">// CRITICAL: 3 × 500ms bursts with 200ms gaps = unmissable</span>
+<span class="cm">// LOW:      1 × 300ms pulse = noticeable but not alarming</span>
+<span class="kw">void</span> <span class="fn">_vibrate</span>(<span class="ty">List</span>&lt;<span class="ty">int</span>&gt; pattern) {
+  <span class="ty">Vibration</span>.<span class="fn">hasVibrator</span>().<span class="fn">then</span>((has) {
+    <span class="kw">if</span> (has == <span class="kw">true</span>) <span class="ty">Vibration</span>.<span class="fn">vibrate</span>(<span class="pk">pattern</span>: pattern);
+  });
+}
+
+<span class="cm">// Usage:</span>
+<span class="kw">if</span> (vibrate) <span class="fn">_vibrate</span>([<span class="nm">0</span>, <span class="nm">500</span>, <span class="nm">200</span>, <span class="nm">500</span>, <span class="nm">200</span>, <span class="nm">500</span>]); <span class="cm">// CRITICAL</span>
+<span class="kw">if</span> (vibrate) <span class="fn">_vibrate</span>([<span class="nm">0</span>, <span class="nm">300</span>, <span class="nm">500</span>]);               <span class="cm">// LOW</span></pre>
+  </div>
+
+  <h2>Deep-Link Navigation from a Tap</h2>
+  <div class="code-wrap">
+    <div class="code-header">
+      <span class="code-filename">lib/main.dart — notification tap → BedDetailScreen</span>
+      <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+    </div>
+<pre><span class="cm">// In initState: subscribe to the tap stream from AlertService</span>
+_tapSub = <span class="ty">AlertService</span>.instance.notificationTaps.<span class="fn">listen</span>(_navigateToBed);
+
+<span class="cm">// In addPostFrameCallback: handle cold-launch pending tap</span>
+<span class="ty">WidgetsBinding</span>.instance.<span class="fn">addPostFrameCallback</span>((_) {
+  <span class="kw">final</span> pending = <span class="ty">AlertService</span>.instance.<span class="fn">consumePendingTap</span>();
+  <span class="kw">if</span> (pending != <span class="kw">null</span>) <span class="fn">_navigateToBed</span>(pending);
+});
+
+<span class="kw">void</span> <span class="fn">_navigateToBed</span>(<span class="ty">String</span> bedConfigId) {
+  <span class="cm">// Look up the BedConfig from settings (we need the full object, not just ID)</span>
+  <span class="kw">final</span> bed = ref.<span class="fn">read</span>(appSettingsProvider).beds
+      .<span class="fn">cast</span>&lt;<span class="ty">BedConfig</span>?&gt;()
+      .<span class="fn">firstWhere</span>((b) => b?.id == bedConfigId, <span class="pk">orElse</span>: () => <span class="kw">null</span>);
+  <span class="kw">if</span> (bed == <span class="kw">null</span>) <span class="kw">return</span>;
+
+  <span class="cm">// navigatorKey reaches the Navigator from outside the widget tree</span>
+  <span class="kw">final</span> nav = navigatorKey.currentState;
+  <span class="kw">if</span> (nav == <span class="kw">null</span>) <span class="kw">return</span>;
+
+  <span class="cm">// popUntil: clear any stacked detail screens, then push the correct one</span>
+  nav.<span class="fn">popUntil</span>((route) => route.isFirst || route.settings.name == <span class="st">'/'</span>);
+  nav.<span class="fn">pushNamed</span>(<span class="st">'/detail'</span>, <span class="pk">arguments</span>: bed);
+}</pre>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-title">⚠️ iOS background limitation</div>
+    <p>On iOS, Flutter's Dart isolate is <strong>suspended within ~30 seconds</strong> of the app being backgrounded. The polling <code>Timer</code> stops firing. Nurses using iPhones will <strong>not receive alerts</strong> while the app is in the background. This is an Apple OS restriction — not a Flutter or IV Sentinel bug.<br><br>
+    Fix: add a lightweight backend (Firebase Cloud Messaging + APNs) that polls ThingSpeak server-side and pushes to the device. The alert logic in <code>AlertService</code> is already structured to receive the same payload from a push notification. Android is not affected.</p>
+  </div>
+
+  <!-- QUIZ 10 -->
+  <div class="quiz" id="quiz10">
+    <div class="quiz-q">A nurse has vibration disabled in Settings. The polling provider detects a CRITICAL transition. What happens?</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz10','correct',this)"><span class="opt-key">A</span> A notification fires but the phone doesn't vibrate — <code>fireCritical</code> receives <code>vibrate: false</code> so <code>_vibrate()</code> is never called.</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz10','wrong',this)"><span class="opt-key">B</span> Nothing happens — the whole alert is suppressed if vibration is off.</div>
+    <div class="quiz-option" onclick="checkQuiz('quiz10','wrong',this)"><span class="opt-key">C</span> The phone vibrates anyway — the vibration setting only affects LOW alerts.</div>
+    <div class="quiz-feedback" id="quiz10-feedback"></div>
+  </div>
+</section>
+
 </main><!-- end #main -->
 
 <script>
@@ -1545,7 +1744,7 @@ function setActive(el) {
 }
 
 // ── Progress tracking ──
-const totalChapters = 9;
+const totalChapters = 10;
 let visited = new Set();
 
 const observer = new IntersectionObserver((entries) => {
@@ -1595,6 +1794,7 @@ const answers = {
   quiz7: { correct: '12 o'clock (top center) — 50% of the 270° sweep from 7:30 lands at the top', feedback: 'Correct! Starting at 7:30 (135°) and sweeping 50% of 270° = 135° clockwise. 135° + 135° = 270° from 3 o\'clock. 270° in Flutter canvas coordinates = 12 o\'clock (top center). The gauge fills through left→top at 50%.' },
   quiz8: { correct: 'The sparkline is 28px tall and lives inside a GestureDetector (the BedCard tap). Enabling touch would intercept card taps without giving enough space to be useful.', feedback: 'Correct! A 28px tall chart can\'t register meaningful horizontal drag-to-select gestures. Enabling LineTouchData on it would swallow tap events from the GestureDetector that wraps the whole BedCard, breaking navigation to the detail screen.' },
   quiz9: { correct: 'Flutter throws an assertion error: "There are multiple heroes that share the same tag." Tags must be unique per screen.', feedback: 'Correct! This is why we use config.id (the unique bed identifier) in the tag rather than something like \'gauge\'. Duplicate Hero tags are a common bug when you have dynamic lists — always scope the tag to a unique identifier.' },
+  quiz10: { correct: 'A notification fires but the phone doesn\'t vibrate — fireCritical receives vibrate: false so _vibrate() is never called.', feedback: 'Correct! The notify and vibrate flags are passed separately so they\'re fully independent. A nurse can have notifications on + vibration off, or vibration on + notifications off. Both are checked at the call site in _poll() from the settings state.' },
 };
 
 function checkQuiz(quizId, result, el) {
