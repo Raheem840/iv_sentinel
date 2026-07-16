@@ -4,8 +4,21 @@ import 'app_colors.dart';
 
 // Base text theme using Manrope — imported at runtime from Google Fonts CDN
 // (first launch requires internet; cached thereafter)
-TextTheme _buildTextTheme(Color primary, Color secondary) {
-  return GoogleFonts.manropeTextTheme().copyWith(
+//
+// IMPORTANT: every TextTheme slot must get an explicit color here. Slots left
+// unset fall through to GoogleFonts' un-themed default (built on a plain
+// black/white Typography), which is how form-field input text went
+// invisible: TextField renders typed text using textTheme.bodyLarge, which
+// wasn't overridden before and rendered dark-on-dark in the dark theme.
+TextTheme _buildTextTheme(
+  Color primary,
+  Color secondary,
+  Brightness brightness,
+) {
+  final base = brightness == Brightness.dark
+      ? Typography.material2021().white
+      : Typography.material2021().black;
+  return GoogleFonts.manropeTextTheme(base).copyWith(
     displayLarge: GoogleFonts.manrope(
       fontSize: 48,
       fontWeight: FontWeight.w700,
@@ -18,6 +31,16 @@ TextTheme _buildTextTheme(Color primary, Color secondary) {
       color: primary,
       fontFeatures: [const FontFeature.tabularFigures()],
     ),
+    displaySmall: GoogleFonts.manrope(
+      fontSize: 24,
+      fontWeight: FontWeight.w700,
+      color: primary,
+    ),
+    headlineSmall: GoogleFonts.manrope(
+      fontSize: 22,
+      fontWeight: FontWeight.w600,
+      color: primary,
+    ),
     titleLarge: GoogleFonts.manrope(
       fontSize: 20,
       fontWeight: FontWeight.w600,
@@ -28,6 +51,17 @@ TextTheme _buildTextTheme(Color primary, Color secondary) {
       fontWeight: FontWeight.w600,
       color: primary,
     ),
+    titleSmall: GoogleFonts.manrope(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: primary,
+    ),
+    // Default style TextField/TextFormField use for the text you type.
+    bodyLarge: GoogleFonts.manrope(
+      fontSize: 16,
+      fontWeight: FontWeight.w500,
+      color: primary,
+    ),
     bodyMedium: GoogleFonts.manrope(
       fontSize: 14,
       fontWeight: FontWeight.w400,
@@ -36,6 +70,16 @@ TextTheme _buildTextTheme(Color primary, Color secondary) {
     bodySmall: GoogleFonts.manrope(
       fontSize: 12,
       fontWeight: FontWeight.w400,
+      color: secondary,
+    ),
+    labelLarge: GoogleFonts.manrope(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: primary,
+    ),
+    labelMedium: GoogleFonts.manrope(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
       color: secondary,
     ),
     labelSmall: GoogleFonts.manrope(
@@ -50,13 +94,18 @@ TextTheme _buildTextTheme(Color primary, Color secondary) {
 ThemeData buildDarkTheme() {
   return ThemeData(
     brightness: Brightness.dark,
+    fontFamily: GoogleFonts.manrope().fontFamily,
     scaffoldBackgroundColor: kBackgroundDark,
     colorScheme: const ColorScheme.dark(
       surface: kSurfaceDark,
       primary: kStatusGreen,
       error: kStatusRed,
     ),
-    textTheme: _buildTextTheme(kTextPrimaryDark, kTextSecondaryDark),
+    textTheme: _buildTextTheme(
+      kTextPrimaryDark,
+      kTextSecondaryDark,
+      Brightness.dark,
+    ),
     cardTheme: CardThemeData(
       color: kSurfaceDark,
       elevation: 0,
@@ -69,10 +118,14 @@ ThemeData buildDarkTheme() {
     iconTheme: const IconThemeData(color: kTextSecondaryDark),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? kStatusGreen : kTextSecondaryDark,
+        (states) => states.contains(WidgetState.selected)
+            ? kStatusGreen
+            : kTextSecondaryDark,
       ),
       trackColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? kStatusGreenDim : kBorderDark,
+        (states) => states.contains(WidgetState.selected)
+            ? kStatusGreenDim
+            : kBorderDark,
       ),
     ),
     sliderTheme: const SliderThemeData(
@@ -120,13 +173,18 @@ ThemeData buildDarkTheme() {
 ThemeData buildLightTheme() {
   return ThemeData(
     brightness: Brightness.light,
+    fontFamily: GoogleFonts.manrope().fontFamily,
     scaffoldBackgroundColor: kBackgroundLight,
     colorScheme: const ColorScheme.light(
       surface: kSurfaceLight,
       primary: kStatusGreen,
       error: kStatusRed,
     ),
-    textTheme: _buildTextTheme(kTextPrimaryLight, kTextSecondaryLight),
+    textTheme: _buildTextTheme(
+      kTextPrimaryLight,
+      kTextSecondaryLight,
+      Brightness.light,
+    ),
     cardTheme: CardThemeData(
       color: kSurfaceLight,
       elevation: 0,
@@ -139,10 +197,14 @@ ThemeData buildLightTheme() {
     iconTheme: const IconThemeData(color: kTextSecondaryLight),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? kStatusGreen : kTextSecondaryLight,
+        (states) => states.contains(WidgetState.selected)
+            ? kStatusGreen
+            : kTextSecondaryLight,
       ),
       trackColor: WidgetStateProperty.resolveWith(
-        (states) => states.contains(WidgetState.selected) ? kStatusGreenDim : kBorderLight,
+        (states) => states.contains(WidgetState.selected)
+            ? kStatusGreenDim
+            : kBorderLight,
       ),
     ),
     sliderTheme: const SliderThemeData(
