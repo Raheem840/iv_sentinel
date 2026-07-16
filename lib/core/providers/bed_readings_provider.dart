@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/bed_reading.dart';
 import '../services/thingspeak_service.dart';
@@ -39,9 +40,12 @@ class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
     return _fetchAll();
   }
 
-  /// Manual refresh — shows loading spinner, then refetches.
+  /// Manual refresh — refetches while keeping the previous data available via
+  /// `.valueOrNull` (via copyWithPrevious) so the UI can keep the real grid
+  /// mounted (and its RefreshIndicator/scroll position intact) instead of
+  /// tearing it down for a generic loading skeleton mid-refresh.
   Future<void> refresh() async {
-    state = const AsyncLoading();
+    state = AsyncLoading<Map<String, BedReading>>().copyWithPrevious(state);
     state = await AsyncValue.guard(_fetchAll);
   }
 
@@ -75,19 +79,29 @@ class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
 
   /// Timer tick — updates state without a full loading-spinner cycle.
   Future<void> _poll() async {
+    final settings = ref.read(appSettingsProvider);
+    final Map<String, BedReading> fresh;
     try {
-      final settings = ref.read(appSettingsProvider);
-      final fresh = await _fetchAll();
+      fresh = await _fetchAll();
+    } catch (e, st) {
+      state = AsyncError(e, st);
+      return;
+    }
 
-      // Evaluate status transitions and fire per-feature alerts
-      for (final bed in settings.beds) {
-        final reading = fresh[bed.id];
-        if (reading == null) continue;
+    // Publish the fetch result immediately — alert delivery below must never
+    // block or override data that was successfully retrieved.
+    state = AsyncData(fresh);
 
-        final prev = _prevStatus[bed.id];
-        final curr = reading.statusCode;
+    // Evaluate status transitions and fire per-feature alerts
+    for (final bed in settings.beds) {
+      final reading = fresh[bed.id];
+      if (reading == null) continue;
 
-        if (prev != curr) {
+      final prev = _prevStatus[bed.id];
+      final curr = reading.statusCode;
+
+      if (prev != curr) {
+        try {
           if (curr == 2) {
             // Entered CRITICAL — fire notification and/or vibration based on user prefs
             await AlertService.instance.fireCritical(
@@ -107,14 +121,13 @@ class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
               vibrate: settings.vibrationEnabled,
             );
           }
+        } catch (e, st) {
+          // Never let a notification/vibration failure affect displayed data.
+          debugPrint('Alert delivery failed for bed ${bed.id}: $e\n$st');
         }
-
-        _prevStatus[bed.id] = curr;
       }
 
-      state = AsyncData(fresh);
-    } catch (e, st) {
-      state = AsyncError(e, st);
+      _prevStatus[bed.id] = curr;
     }
   }
 }

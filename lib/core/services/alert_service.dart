@@ -33,8 +33,9 @@ class AlertService {
     // flutter_local_notifications has no web/Windows/macOS/Linux implementation
     // in this project — skip plugin init on unsupported platforms so it can
     // never throw and block app startup.
-    if (kIsWeb || !(defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS)) {
+    if (kIsWeb ||
+        !(defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS)) {
       return;
     }
 
@@ -54,7 +55,9 @@ class AlertService {
       );
 
       await _plugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
           ?.requestNotificationsPermission();
     } catch (e, st) {
       // Never let a notification-plugin failure block app startup.
@@ -132,8 +135,12 @@ class AlertService {
   }
 
   void _vibrate(List<int> pattern) {
-    Vibration.hasVibrator().then((has) {
-      if (has == true) Vibration.vibrate(pattern: pattern);
-    });
+    Vibration.hasVibrator()
+        .then((has) {
+          if (has == true) Vibration.vibrate(pattern: pattern);
+        })
+        .catchError((e) {
+          debugPrint('Vibration failed: $e');
+        });
   }
 }

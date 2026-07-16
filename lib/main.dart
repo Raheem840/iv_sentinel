@@ -52,9 +52,9 @@ class _IvSentinelAppState extends ConsumerState<IvSentinelApp> {
   void _navigateToBed(String bedConfigId) {
     final beds = ref.read(appSettingsProvider).beds;
     final bed = beds.cast<BedConfig?>().firstWhere(
-          (b) => b?.id == bedConfigId,
-          orElse: () => null,
-        );
+      (b) => b?.id == bedConfigId,
+      orElse: () => null,
+    );
     if (bed == null) return;
 
     final nav = navigatorKey.currentState;
@@ -85,7 +85,10 @@ class _IvSentinelAppState extends ConsumerState<IvSentinelApp> {
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/detail') {
-          final config = settings.arguments as BedConfig;
+          final config = settings.arguments;
+          // A malformed navigation (bad deep link, stale restoration replay)
+          // should fall through to unknown-route handling, not crash.
+          if (config is! BedConfig) return null;
           return MaterialPageRoute(
             builder: (_) => BedDetailScreen(config: config),
           );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/bed_reading.dart';
 import '../../core/providers/bed_readings_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/pulse_loading_overlay.dart';
@@ -10,6 +11,11 @@ import 'widgets/critical_banner.dart';
 // Keeps a rolling buffer of the last 20 readings per bed for sparklines.
 // Stored here (not in Riverpod) because it's purely a display concern.
 final _historyBuffer = <String, List<double>>{};
+
+// Timestamp of the last reading actually appended per bed, so a rebuild
+// triggered by something other than a new reading (e.g. toggling a switch in
+// Settings) can't push a duplicate point and flatten the sparkline trend.
+final _lastAppendedTimestamp = <String, DateTime>{};
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -22,26 +28,33 @@ class HomeScreen extends ConsumerWidget {
     // Prune history for beds that have been removed from settings
     final activeBedIds = settings.beds.map((b) => b.id).toSet();
     _historyBuffer.removeWhere((id, _) => !activeBedIds.contains(id));
+    _lastAppendedTimestamp.removeWhere((id, _) => !activeBedIds.contains(id));
 
-    // Update the sparkline history buffer whenever new data arrives
+    // Update the sparkline history buffer, but only for genuinely new
+    // readings (by timestamp) — otherwise an unrelated rebuild would append
+    // a duplicate of the last value and evict a real older sample.
     readingsAsync.whenData((readings) {
       for (final entry in readings.entries) {
+        final reading = entry.value;
+        if (_lastAppendedTimestamp[entry.key] == reading.timestamp) continue;
+        _lastAppendedTimestamp[entry.key] = reading.timestamp;
         final buf = _historyBuffer.putIfAbsent(entry.key, () => []);
-        buf.add(entry.value.percent);
+        buf.add(reading.percent);
         if (buf.length > 20) buf.removeAt(0); // keep last 20 only
       }
     });
 
+    // Readings from the most recent successful fetch, kept available even
+    // while a refresh is in flight (see BedReadingsNotifier.refresh) so the
+    // real grid + RefreshIndicator never get torn down mid-pull.
+    final cachedReadings = readingsAsync.valueOrNull;
+
     // Count critical beds for the AppBar badge
-    final criticalCount =
-        readingsAsync
-            .whenData(
-              (readings) => settings.beds
-                  .where((b) => readings[b.id]?.isCritical == true)
-                  .length,
-            )
-            .value ??
-        0;
+    final criticalCount = cachedReadings == null
+        ? 0
+        : settings.beds
+              .where((b) => cachedReadings[b.id]?.isCritical == true)
+              .length;
 
     return Scaffold(
       appBar: AppBar(
@@ -73,79 +86,96 @@ class HomeScreen extends ConsumerWidget {
       ),
       body: PulseLoadingOverlay(
         isLoading: readingsAsync.isLoading,
-        child: readingsAsync.when(
-          // ── Loading state (first fetch only) ──
-          loading: () => _LoadingGrid(count: settings.beds.length),
-
-          // ── Error state ──
-          error: (e, _) => _ErrorView(
-            message: e.toString(),
-            onRetry: () => ref.read(bedReadingsProvider.notifier).refresh(),
-          ),
-
-          // ── Data state ──
-          data: (readings) {
-            if (settings.beds.isEmpty) return const _EmptyState();
-
-            // Identify beds currently in CRITICAL for the banner
-            final criticalBeds = settings.beds
-                .where((b) => readings[b.id]?.isCritical == true)
-                .toList();
-
-            return RefreshIndicator(
-              onRefresh: () => ref.read(bedReadingsProvider.notifier).refresh(),
-              child: CustomScrollView(
-                slivers: [
-                  // Sticky critical alert banner (hidden when no beds are critical)
-                  SliverToBoxAdapter(
-                    child: AnimatedSize(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                      child: CriticalBanner(
-                        criticalBeds: criticalBeds,
-                        readings: readings,
-                        onTap: (config) => Navigator.pushNamed(
-                          context,
-                          '/detail',
-                          arguments: config,
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Bed grid
-                  SliverPadding(
-                    padding: const EdgeInsets.all(16),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 1.05, // compact cards
-                          ),
-                      delegate: SliverChildBuilderDelegate((context, i) {
-                        final config = settings.beds[i];
-                        return BedCard(
-                          config: config,
-                          reading: readings[config.id],
-                          hasError: ref
-                              .read(bedReadingsProvider.notifier)
-                              .hasError(config.id),
-                          history: List.of(_historyBuffer[config.id] ?? []),
-                          onTap: () => Navigator.pushNamed(
-                            context,
-                            '/detail',
-                            arguments: config,
-                          ),
-                        );
-                      }, childCount: settings.beds.length),
-                    ),
-                  ),
-                ],
+        child: cachedReadings != null
+            ? _DataBody(
+                settings: settings,
+                readings: cachedReadings,
+                historyBuffer: _historyBuffer,
+              )
+            : readingsAsync.when(
+                loading: () => _LoadingGrid(count: settings.beds.length),
+                error: (e, _) => _ErrorView(
+                  message: e.toString(),
+                  onRetry: () =>
+                      ref.read(bedReadingsProvider.notifier).refresh(),
+                ),
+                // Unreachable: cachedReadings above already covers any state
+                // where data is present.
+                data: (_) => const SizedBox.shrink(),
               ),
-            );
-          },
-        ),
+      ),
+    );
+  }
+}
+
+// ── Bed grid + critical banner, shown whenever cached readings exist ──────────
+
+class _DataBody extends ConsumerWidget {
+  final AppSettings settings;
+  final Map<String, BedReading> readings;
+  final Map<String, List<double>> historyBuffer;
+
+  const _DataBody({
+    required this.settings,
+    required this.readings,
+    required this.historyBuffer,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (settings.beds.isEmpty) return const _EmptyState();
+
+    // Identify beds currently in CRITICAL for the banner
+    final criticalBeds = settings.beds
+        .where((b) => readings[b.id]?.isCritical == true)
+        .toList();
+
+    return RefreshIndicator(
+      onRefresh: () => ref.read(bedReadingsProvider.notifier).refresh(),
+      child: CustomScrollView(
+        slivers: [
+          // Sticky critical alert banner (hidden when no beds are critical)
+          SliverToBoxAdapter(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: CriticalBanner(
+                criticalBeds: criticalBeds,
+                readings: readings,
+                onTap: (config) =>
+                    Navigator.pushNamed(context, '/detail', arguments: config),
+              ),
+            ),
+          ),
+          // Bed grid
+          SliverPadding(
+            padding: const EdgeInsets.all(16),
+            sliver: SliverGrid(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.05, // compact cards
+              ),
+              delegate: SliverChildBuilderDelegate((context, i) {
+                final config = settings.beds[i];
+                return BedCard(
+                  config: config,
+                  reading: readings[config.id],
+                  hasError: ref
+                      .read(bedReadingsProvider.notifier)
+                      .hasError(config.id),
+                  history: List.of(historyBuffer[config.id] ?? []),
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    '/detail',
+                    arguments: config,
+                  ),
+                );
+              }, childCount: settings.beds.length),
+            ),
+          ),
+        ],
       ),
     );
   }

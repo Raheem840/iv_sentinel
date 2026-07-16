@@ -20,13 +20,12 @@ class BedDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final historyAsync = ref.watch(bedHistoryProvider(config));
-    final liveReading = ref
-        .watch(bedReadingsProvider)
-        .whenData((m) => m[config.id])
-        .value;
+    final readingsAsyncValue = ref.watch(bedReadingsProvider);
+    final liveReading = readingsAsyncValue.whenData((m) => m[config.id]).value;
     final hasNoData =
         liveReading == null &&
-        ref.read(bedReadingsProvider.notifier).hasError(config.id);
+        (readingsAsyncValue.hasError ||
+            ref.read(bedReadingsProvider.notifier).hasError(config.id));
 
     final statusCode = liveReading?.statusCode ?? 0;
     final color = hasNoData ? kTextSecondaryDark : statusColor(statusCode);
