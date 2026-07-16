@@ -1,6 +1,8 @@
 # Miscellaneous
 *.class
 *.lock
+# Apps (not packages) should commit pubspec.lock for reproducible builds
+!pubspec.lock
 *.log
 *.pyc
 *.swp
@@ -51,6 +53,7 @@ unlinked.ds
 unlinked_spec.ds
 
 # Android related
+**/android/.kotlin/
 **/android/**/gradle-wrapper.jar
 .gradle/
 **/android/captures/

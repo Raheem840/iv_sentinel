@@ -6,11 +6,16 @@ plugins {
 
 android {
     namespace = "com.example.iv_sentinel"
-    compileSdk = flutter.compileSdkVersion
+    // Pinned explicitly: flutter.compileSdkVersion resolved to 33 on this
+    // Flutter version, but shared_preferences_android and vibration's
+    // transitive deps require compiling against 36+.
+    compileSdk = 36
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Required by flutter_local_notifications
+        isCoreLibraryDesugaringEnabled = true
     }
 
     defaultConfig {
@@ -41,4 +46,8 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

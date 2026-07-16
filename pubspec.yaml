@@ -25,7 +25,7 @@ dependencies:
   flutter_local_notifications: ^17.2.2
 
   # Haptic vibration patterns for CRITICAL/LOW alerts
-  vibration: ^2.0.0
+  vibration: ^3.2.0
 
   # Persists bed configs (name, channel ID, API key) as JSON on device
   shared_preferences: ^2.3.2
