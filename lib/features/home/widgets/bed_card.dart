@@ -129,6 +129,13 @@ class _BedCardState extends State<BedCard> with SingleTickerProviderStateMixin {
                             statusCode: statusCode,
                             small: true,
                           )
+                        : widget.hasError
+                        ? const StatusBadge(
+                            key: ValueKey('no-data'),
+                            statusCode: 0,
+                            small: true,
+                            unknown: true,
+                          )
                         : const SizedBox.shrink(),
                   ),
                 ],

@@ -24,9 +24,12 @@ class BedDetailScreen extends ConsumerWidget {
         .watch(bedReadingsProvider)
         .whenData((m) => m[config.id])
         .value;
+    final hasNoData =
+        liveReading == null &&
+        ref.read(bedReadingsProvider.notifier).hasError(config.id);
 
     final statusCode = liveReading?.statusCode ?? 0;
-    final color = statusColor(statusCode);
+    final color = hasNoData ? kTextSecondaryDark : statusColor(statusCode);
     final percent = liveReading?.percent ?? 0;
 
     // Compute simple trend from history (last reading vs reading 10 steps ago)
@@ -69,6 +72,7 @@ class BedDetailScreen extends ConsumerWidget {
               color: color,
               timestamp: liveReading?.timestamp,
               trend: trend,
+              hasNoData: hasNoData,
             ),
 
             Padding(
@@ -197,6 +201,7 @@ class _GradientHeader extends StatelessWidget {
   final Color color;
   final DateTime? timestamp;
   final double? trend;
+  final bool hasNoData;
 
   const _GradientHeader({
     required this.config,
@@ -205,6 +210,7 @@ class _GradientHeader extends StatelessWidget {
     required this.color,
     required this.timestamp,
     required this.trend,
+    required this.hasNoData,
   });
 
   @override
@@ -233,6 +239,7 @@ class _GradientHeader extends StatelessWidget {
             child: FluidGauge(
               percent: percent,
               statusCode: statusCode,
+              hasError: hasNoData,
               size: 140,
             ),
           ),
@@ -241,28 +248,35 @@ class _GradientHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                StatusBadge(statusCode: statusCode),
+                StatusBadge(statusCode: statusCode, unknown: hasNoData),
                 const SizedBox(height: 12),
 
-                // Trend indicator
-                if (trend != null) _TrendRow(trend: trend!),
-                if (trend != null) const SizedBox(height: 10),
+                if (hasNoData)
+                  Text(
+                    'No connection to this bed\'s sensor yet.',
+                    style: TextStyle(color: kTextSecondaryDark, fontSize: 12),
+                  )
+                else ...[
+                  // Trend indicator
+                  if (trend != null) _TrendRow(trend: trend!),
+                  if (trend != null) const SizedBox(height: 10),
 
-                // Updated timestamp
-                if (timestamp != null) ...[
-                  Text(
-                    'Updated',
-                    style: TextStyle(color: kTextSecondaryDark, fontSize: 11),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    timeFmt.format(timestamp!.toLocal()),
-                    style: const TextStyle(
-                      color: kTextPrimaryDark,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                  // Updated timestamp
+                  if (timestamp != null) ...[
+                    Text(
+                      'Updated',
+                      style: TextStyle(color: kTextSecondaryDark, fontSize: 11),
                     ),
-                  ),
+                    const SizedBox(height: 2),
+                    Text(
+                      timeFmt.format(timestamp!.toLocal()),
+                      style: const TextStyle(
+                        color: kTextPrimaryDark,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ],
               ],
             ),
