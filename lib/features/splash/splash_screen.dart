@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/services/alert_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/ecg_pulse_painter.dart';
 
 /// Branded loading screen shown while [AlertService] initializes.
 /// Displays "IV SENTINEL" in a monitor/ECG-style font with a pulse-line
@@ -32,9 +33,10 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _boot() async {
     final minDisplay = Future.delayed(const Duration(milliseconds: 1200));
-    final init = AlertService.instance
-        .init()
-        .timeout(const Duration(seconds: 3), onTimeout: () {});
+    final init = AlertService.instance.init().timeout(
+      const Duration(seconds: 3),
+      onTimeout: () {},
+    );
     await Future.wait([minDisplay, init]);
     if (!mounted) return;
     Navigator.of(context).pushReplacementNamed(widget.nextRoute);
@@ -78,7 +80,7 @@ class _SplashScreenState extends State<SplashScreen>
               child: AnimatedBuilder(
                 animation: _pulseController,
                 builder: (context, _) => CustomPaint(
-                  painter: _PulseLinePainter(progress: _pulseController.value),
+                  painter: EcgPulsePainter(progress: _pulseController.value),
                 ),
               ),
             ),
@@ -87,48 +89,4 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
   }
-}
-
-/// Paints a traveling ECG-style pulse line, evoking a hospital heart monitor.
-class _PulseLinePainter extends CustomPainter {
-  _PulseLinePainter({required this.progress});
-
-  final double progress;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final basePaint = Paint()
-      ..color = kStatusGreenDim
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-    final midY = size.height / 2;
-    canvas.drawLine(Offset(0, midY), Offset(size.width, midY), basePaint);
-
-    final path = Path();
-    final midX = size.width * progress;
-    path.moveTo(0, midY);
-    final segments = [
-      Offset(midX - 24, midY),
-      Offset(midX - 16, midY - 14),
-      Offset(midX - 8, midY + 18),
-      Offset(midX, midY - 22),
-      Offset(midX + 8, midY),
-    ];
-    for (final point in segments) {
-      if (point.dx < 0) continue;
-      path.lineTo(point.dx.clamp(0, size.width), point.dy);
-    }
-    path.lineTo(size.width, midY);
-
-    final tracePaint = Paint()
-      ..color = kStatusGreen
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    canvas.drawPath(path, tracePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PulseLinePainter oldDelegate) =>
-      oldDelegate.progress != progress;
 }

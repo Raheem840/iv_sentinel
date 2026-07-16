@@ -7,6 +7,7 @@ import '../../core/providers/bed_history_provider.dart';
 import '../../core/providers/bed_readings_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/status_color.dart';
+import '../../core/widgets/pulse_loading_overlay.dart';
 import '../home/widgets/fluid_gauge.dart';
 import '../home/widgets/status_badge.dart';
 import 'widgets/history_chart.dart';
@@ -40,8 +41,13 @@ class BedDetailScreen extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: kTextPrimaryDark),
-        title: Text(config.name,
-            style: const TextStyle(color: kTextPrimaryDark, fontWeight: FontWeight.w700)),
+        title: Text(
+          config.name,
+          style: const TextStyle(
+            color: kTextPrimaryDark,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh_rounded, color: kTextPrimaryDark),
@@ -50,114 +56,127 @@ class BedDetailScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: ListView(
-        padding: EdgeInsets.zero,
-        children: [
-          // ── Gradient hero header ──
-          _GradientHeader(
-            config: config,
-            percent: percent,
-            statusCode: statusCode,
-            color: color,
-            timestamp: liveReading?.timestamp,
-            trend: trend,
-          ),
+      body: PulseLoadingOverlay(
+        isLoading: historyAsync.isLoading,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            // ── Gradient hero header ──
+            _GradientHeader(
+              config: config,
+              percent: percent,
+              statusCode: statusCode,
+              color: color,
+              timestamp: liveReading?.timestamp,
+              trend: trend,
+            ),
 
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Threshold chips ──
-                Row(
-                  children: [
-                    _ThresholdChip(
-                      label: 'LOW alert',
-                      value: '${config.lowThreshold.toInt()}%',
-                      color: kStatusAmber,
-                    ),
-                    const SizedBox(width: 12),
-                    _ThresholdChip(
-                      label: 'CRITICAL alert',
-                      value: '${config.critThreshold.toInt()}%',
-                      color: kStatusRed,
-                    ),
-                  ],
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── Threshold chips ──
+                  Row(
+                    children: [
+                      _ThresholdChip(
+                        label: 'LOW alert',
+                        value: '${config.lowThreshold.toInt()}%',
+                        color: kStatusAmber,
+                      ),
+                      const SizedBox(width: 12),
+                      _ThresholdChip(
+                        label: 'CRITICAL alert',
+                        value: '${config.critThreshold.toInt()}%',
+                        color: kStatusRed,
+                      ),
+                    ],
+                  ),
 
-                const SizedBox(height: 28),
+                  const SizedBox(height: 28),
 
-                // ── History section header ──
-                Row(
-                  children: [
-                    const Text('History',
+                  // ── History section header ──
+                  Row(
+                    children: [
+                      const Text(
+                        'History',
                         style: TextStyle(
                           color: kTextPrimaryDark,
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                        )),
-                    const Spacer(),
-                    Text('last 60 readings',
-                        style: TextStyle(color: kTextSecondaryDark, fontSize: 12)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // ── History chart ──
-                SizedBox(
-                  height: 260,
-                  child: historyAsync.when(
-                    loading: () => const Center(
-                      child: CircularProgressIndicator(color: kStatusGreen),
-                    ),
-                    error: (e, _) => _ChartError(
-                      message: e.toString(),
-                      onRetry: () => ref.invalidate(bedHistoryProvider(config)),
-                    ),
-                    data: (readings) => readings.isEmpty
-                        ? Center(
-                            child: Text(
-                              'No history available yet',
-                              style: TextStyle(color: kTextSecondaryDark),
-                            ),
-                          )
-                        : HistoryChart(
-                            readings: readings,
-                            lowThreshold: config.lowThreshold,
-                            critThreshold: config.critThreshold,
-                          ),
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        'last 60 readings',
+                        style: TextStyle(
+                          color: kTextSecondaryDark,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 16),
 
-                const SizedBox(height: 28),
+                  // ── History chart ──
+                  SizedBox(
+                    height: 260,
+                    child: historyAsync.when(
+                      loading: () => const Center(
+                        child: CircularProgressIndicator(color: kStatusGreen),
+                      ),
+                      error: (e, _) => _ChartError(
+                        message: e.toString(),
+                        onRetry: () =>
+                            ref.invalidate(bedHistoryProvider(config)),
+                      ),
+                      data: (readings) => readings.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No history available yet',
+                                style: TextStyle(color: kTextSecondaryDark),
+                              ),
+                            )
+                          : HistoryChart(
+                              readings: readings,
+                              lowThreshold: config.lowThreshold,
+                              critThreshold: config.critThreshold,
+                            ),
+                    ),
+                  ),
 
-                // ── Channel info section ──
-                const Text('Channel Info',
+                  const SizedBox(height: 28),
+
+                  // ── Channel info section ──
+                  const Text(
+                    'Channel Info',
                     style: TextStyle(
                       color: kTextPrimaryDark,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                    )),
-                const SizedBox(height: 12),
-
-                _InfoCard(
-                  children: [
-                    _InfoRow(label: 'Channel ID', value: config.channelId),
-                    _InfoRow(
-                      label: 'API Key',
-                      value: config.apiKey.length >= 4
-                          ? '${config.apiKey.substring(0, 4)}••••••••'
-                          : '••••••••',
                     ),
-                    _InfoRow(label: 'Poll interval', value: 'auto'),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 12),
 
-                const SizedBox(height: 32),
-              ],
+                  _InfoCard(
+                    children: [
+                      _InfoRow(label: 'Channel ID', value: config.channelId),
+                      _InfoRow(
+                        label: 'API Key',
+                        value: config.apiKey.length >= 4
+                            ? '${config.apiKey.substring(0, 4)}••••••••'
+                            : '••••••••',
+                      ),
+                      _InfoRow(label: 'Poll interval', value: 'auto'),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -200,15 +219,10 @@ class _GradientHeader extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            color.withAlpha(28),
-            kSurfaceDark.withAlpha(255),
-          ],
+          colors: [color.withAlpha(28), kSurfaceDark.withAlpha(255)],
           stops: const [0.0, 1.0],
         ),
-        border: Border(
-          bottom: BorderSide(color: kBorderDark, width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: kBorderDark, width: 1)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -236,8 +250,10 @@ class _GradientHeader extends StatelessWidget {
 
                 // Updated timestamp
                 if (timestamp != null) ...[
-                  Text('Updated',
-                      style: TextStyle(color: kTextSecondaryDark, fontSize: 11)),
+                  Text(
+                    'Updated',
+                    style: TextStyle(color: kTextSecondaryDark, fontSize: 11),
+                  ),
                   const SizedBox(height: 2),
                   Text(
                     timeFmt.format(timestamp!.toLocal()),
@@ -271,8 +287,8 @@ class _TrendRow extends StatelessWidget {
     final icon = isRising
         ? Icons.trending_up_rounded
         : isFalling
-            ? Icons.trending_down_rounded
-            : Icons.trending_flat_rounded;
+        ? Icons.trending_down_rounded
+        : Icons.trending_flat_rounded;
     final label = trend > 0
         ? '+${trend.abs().toStringAsFixed(1)}% (10 readings)'
         : '${trend.toStringAsFixed(1)}% (10 readings)';
@@ -281,8 +297,14 @@ class _TrendRow extends StatelessWidget {
       children: [
         Icon(icon, color: color, size: 16),
         const SizedBox(width: 4),
-        Text(label,
-            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
@@ -314,12 +336,24 @@ class _ThresholdChip extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label,
-                style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600,
-                    letterSpacing: 0.3)),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(value,
-                style: TextStyle(color: color, fontSize: 20, fontWeight: FontWeight.w800)),
+            Text(
+              value,
+              style: TextStyle(
+                color: color,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ],
         ),
       ),
@@ -345,8 +379,7 @@ class _InfoCard extends StatelessWidget {
         children: [
           for (var i = 0; i < children.length; i++) ...[
             children[i],
-            if (i < children.length - 1)
-              Divider(height: 1, color: kBorderDark),
+            if (i < children.length - 1) Divider(height: 1, color: kBorderDark),
           ],
         ],
       ),
@@ -369,11 +402,18 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: const TextStyle(color: kTextSecondaryDark, fontSize: 13)),
-          Text(value,
-              style: const TextStyle(
-                  color: kTextPrimaryDark, fontSize: 13, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(color: kTextSecondaryDark, fontSize: 13),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: kTextPrimaryDark,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -395,8 +435,10 @@ class _ChartError extends StatelessWidget {
       children: [
         const Icon(Icons.error_outline, color: kStatusAmber, size: 36),
         const SizedBox(height: 8),
-        Text('Failed to load history',
-            style: const TextStyle(color: kTextPrimaryDark, fontSize: 14)),
+        Text(
+          'Failed to load history',
+          style: const TextStyle(color: kTextPrimaryDark, fontSize: 14),
+        ),
         TextButton(
           onPressed: onRetry,
           child: const Text('Retry', style: TextStyle(color: kStatusGreen)),

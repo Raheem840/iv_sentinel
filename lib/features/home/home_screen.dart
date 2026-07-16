@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/bed_readings_provider.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/pulse_loading_overlay.dart';
 import '../../features/settings/bed_config_notifier.dart';
 import 'widgets/bed_card.dart';
 import 'widgets/critical_banner.dart';
@@ -32,11 +33,15 @@ class HomeScreen extends ConsumerWidget {
     });
 
     // Count critical beds for the AppBar badge
-    final criticalCount = readingsAsync.whenData(
-      (readings) => settings.beds
-          .where((b) => readings[b.id]?.isCritical == true)
-          .length,
-    ).value ?? 0;
+    final criticalCount =
+        readingsAsync
+            .whenData(
+              (readings) => settings.beds
+                  .where((b) => readings[b.id]?.isCritical == true)
+                  .length,
+            )
+            .value ??
+        0;
 
     return Scaffold(
       appBar: AppBar(
@@ -66,58 +71,60 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: readingsAsync.when(
-        // ── Loading state (first fetch only) ──
-        loading: () => _LoadingGrid(count: settings.beds.length),
+      body: PulseLoadingOverlay(
+        isLoading: readingsAsync.isLoading,
+        child: readingsAsync.when(
+          // ── Loading state (first fetch only) ──
+          loading: () => _LoadingGrid(count: settings.beds.length),
 
-        // ── Error state ──
-        error: (e, _) => _ErrorView(
-          message: e.toString(),
-          onRetry: () => ref.read(bedReadingsProvider.notifier).refresh(),
-        ),
+          // ── Error state ──
+          error: (e, _) => _ErrorView(
+            message: e.toString(),
+            onRetry: () => ref.read(bedReadingsProvider.notifier).refresh(),
+          ),
 
-        // ── Data state ──
-        data: (readings) {
-          if (settings.beds.isEmpty) return const _EmptyState();
+          // ── Data state ──
+          data: (readings) {
+            if (settings.beds.isEmpty) return const _EmptyState();
 
-          // Identify beds currently in CRITICAL for the banner
-          final criticalBeds = settings.beds
-              .where((b) => readings[b.id]?.isCritical == true)
-              .toList();
+            // Identify beds currently in CRITICAL for the banner
+            final criticalBeds = settings.beds
+                .where((b) => readings[b.id]?.isCritical == true)
+                .toList();
 
-          return RefreshIndicator(
-            onRefresh: () => ref.read(bedReadingsProvider.notifier).refresh(),
-            child: CustomScrollView(
-              slivers: [
-                // Sticky critical alert banner (hidden when no beds are critical)
-                SliverToBoxAdapter(
-                  child: AnimatedSize(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    child: CriticalBanner(
-                      criticalBeds: criticalBeds,
-                      readings: readings,
-                      onTap: (config) => Navigator.pushNamed(
-                        context,
-                        '/detail',
-                        arguments: config,
+            return RefreshIndicator(
+              onRefresh: () => ref.read(bedReadingsProvider.notifier).refresh(),
+              child: CustomScrollView(
+                slivers: [
+                  // Sticky critical alert banner (hidden when no beds are critical)
+                  SliverToBoxAdapter(
+                    child: AnimatedSize(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                      child: CriticalBanner(
+                        criticalBeds: criticalBeds,
+                        readings: readings,
+                        onTap: (config) => Navigator.pushNamed(
+                          context,
+                          '/detail',
+                          arguments: config,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                // Bed grid
-                SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: 0.80, // taller cards for the gauge
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) {
+                  // Bed grid
+                  SliverPadding(
+                    padding: const EdgeInsets.all(16),
+                    sliver: SliverGrid(
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio:
+                                0.80, // taller cards for the gauge
+                          ),
+                      delegate: SliverChildBuilderDelegate((context, i) {
                         final config = settings.beds[i];
                         return BedCard(
                           config: config,
@@ -129,15 +136,14 @@ class HomeScreen extends ConsumerWidget {
                             arguments: config,
                           ),
                         );
-                      },
-                      childCount: settings.beds.length,
+                      }, childCount: settings.beds.length),
                     ),
                   ),
-                ),
-              ],
-            ),
-          );
-        },
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -197,7 +203,11 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.monitor_heart_outlined, size: 64, color: kTextSecondaryDark),
+            Icon(
+              Icons.monitor_heart_outlined,
+              size: 64,
+              color: kTextSecondaryDark,
+            ),
             const SizedBox(height: 24),
             Text(
               'No beds configured',
@@ -217,8 +227,13 @@ class _EmptyState extends StatelessWidget {
               label: const Text('Add a Bed'),
               style: FilledButton.styleFrom(
                 backgroundColor: kStatusGreen,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -236,7 +251,9 @@ class _LoadingGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayCount = count > 0 ? count : 4; // show 4 skeletons if no beds yet
+    final displayCount = count > 0
+        ? count
+        : 4; // show 4 skeletons if no beds yet
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -311,8 +328,10 @@ class _ErrorView extends StatelessWidget {
           children: [
             const Icon(Icons.wifi_off_rounded, size: 48, color: kStatusAmber),
             const SizedBox(height: 16),
-            Text('Could not reach ThingSpeak',
-                style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Could not reach ThingSpeak',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 8),
             Text(
               message,
