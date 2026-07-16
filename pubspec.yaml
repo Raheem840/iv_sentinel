@@ -1,0 +1,45 @@
+name: iv_sentinel
+description: "IV Sentinel — nurse-facing IV fluid monitoring dashboard."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management — lets any widget read/write shared data without passing it manually
+  flutter_riverpod: ^2.5.1
+
+  # HTTP calls to ThingSpeak REST API
+  http: ^1.2.1
+
+  # Charts — sparklines on bed cards and full history chart on detail screen
+  fl_chart: ^0.68.0
+
+  # Local push notifications when a bed goes CRITICAL
+  flutter_local_notifications: ^17.2.2
+
+  # Haptic vibration patterns for CRITICAL/LOW alerts
+  vibration: ^2.0.0
+
+  # Persists bed configs (name, channel ID, API key) as JSON on device
+  shared_preferences: ^2.3.2
+
+  # Manrope / Inter font for premium clinical typography
+  google_fonts: ^6.2.1
+
+  # Date/time formatting for chart axis labels and "Updated Xs ago" timestamps
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
