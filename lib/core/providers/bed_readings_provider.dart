@@ -14,6 +14,12 @@ class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
   // Tracks the previous status per bed to detect transitions (not just current state)
   final Map<String, int> _prevStatus = {};
 
+  // Beds whose most recent fetch attempt failed (bad connectivity, no data
+  // published yet, etc). Lets the UI show "no data" instead of spinning
+  // forever when a bed has been tried at least once and come back empty.
+  final Set<String> _erroredBeds = {};
+  bool hasError(String bedId) => _erroredBeds.contains(bedId);
+
   @override
   Future<Map<String, BedReading>> build() async {
     ref.onDispose(() => _timer?.cancel());
@@ -52,9 +58,14 @@ class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
     await Future.wait(
       beds.map((bed) async {
         try {
-          result[bed.id] = await _service.fetchLatest(bed.channelId, bed.apiKey);
+          result[bed.id] = await _service.fetchLatest(
+            bed.channelId,
+            bed.apiKey,
+          );
+          _erroredBeds.remove(bed.id);
         } catch (_) {
           // Keep the previous reading for this bed; don't disrupt other beds
+          _erroredBeds.add(bed.id);
         }
       }),
     );
@@ -110,5 +121,5 @@ class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
 
 final bedReadingsProvider =
     AsyncNotifierProvider<BedReadingsNotifier, Map<String, BedReading>>(
-  BedReadingsNotifier.new,
-);
+      BedReadingsNotifier.new,
+    );

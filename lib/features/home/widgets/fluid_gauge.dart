@@ -12,6 +12,7 @@ class FluidGauge extends StatelessWidget {
   final double percent; // 0–100
   final int statusCode;
   final bool isLoading;
+  final bool hasError;
   final double size;
 
   const FluidGauge({
@@ -19,6 +20,7 @@ class FluidGauge extends StatelessWidget {
     required this.percent,
     required this.statusCode,
     this.isLoading = false,
+    this.hasError = false,
     this.size = 110,
   });
 
@@ -28,7 +30,10 @@ class FluidGauge extends StatelessWidget {
 
     // TweenAnimationBuilder smoothly animates the arc fill when percent changes
     return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: isLoading ? 0 : percent.clamp(0, 100)),
+      tween: Tween(
+        begin: 0,
+        end: (isLoading || hasError) ? 0 : percent.clamp(0, 100),
+      ),
       duration: const Duration(milliseconds: 700),
       curve: Curves.easeOutCubic,
       builder: (context, animatedPercent, _) {
@@ -51,6 +56,26 @@ class FluidGauge extends StatelessWidget {
                         strokeWidth: 2,
                         color: kTextSecondaryDark,
                       ),
+                    )
+                  : hasError
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.cloud_off_rounded,
+                          size: size * 0.24,
+                          color: kTextSecondaryDark,
+                        ),
+                        SizedBox(height: size * 0.03),
+                        Text(
+                          'No data',
+                          style: TextStyle(
+                            fontSize: size * 0.09,
+                            color: kTextSecondaryDark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     )
                   : Column(
                       mainAxisSize: MainAxisSize.min,
@@ -92,8 +117,9 @@ class _GaugePainter extends CustomPainter {
   final double strokeWidth;
 
   // Arc starts at 7:30 (bottom-left) and sweeps 270° clockwise to 4:30
-  static const _startAngle = math.pi * 0.75; // 135° from 3 o'clock = 7:30 position
-  static const _totalSweep = math.pi * 1.5;  // 270° total arc
+  static const _startAngle =
+      math.pi * 0.75; // 135° from 3 o'clock = 7:30 position
+  static const _totalSweep = math.pi * 1.5; // 270° total arc
 
   const _GaugePainter({
     required this.percent,

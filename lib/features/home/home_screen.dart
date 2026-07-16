@@ -121,14 +121,16 @@ class HomeScreen extends ConsumerWidget {
                             crossAxisCount: 2,
                             crossAxisSpacing: 12,
                             mainAxisSpacing: 12,
-                            childAspectRatio:
-                                0.80, // taller cards for the gauge
+                            childAspectRatio: 1.05, // compact cards
                           ),
                       delegate: SliverChildBuilderDelegate((context, i) {
                         final config = settings.beds[i];
                         return BedCard(
                           config: config,
                           reading: readings[config.id],
+                          hasError: ref
+                              .read(bedReadingsProvider.notifier)
+                              .hasError(config.id),
                           history: List.of(_historyBuffer[config.id] ?? []),
                           onTap: () => Navigator.pushNamed(
                             context,
@@ -260,7 +262,7 @@ class _LoadingGrid extends StatelessWidget {
         crossAxisCount: 2,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
+        childAspectRatio: 1.05,
       ),
       itemCount: displayCount,
       itemBuilder: (context, i) => _SkeletonCard(),

@@ -12,6 +12,7 @@ import 'status_badge.dart';
 class BedCard extends StatefulWidget {
   final BedConfig config;
   final BedReading? reading;
+  final bool hasError;
   final List<double> history;
   final VoidCallback onTap;
 
@@ -19,6 +20,7 @@ class BedCard extends StatefulWidget {
     super.key,
     required this.config,
     required this.reading,
+    this.hasError = false,
     required this.history,
     required this.onTap,
   });
@@ -38,9 +40,10 @@ class _BedCardState extends State<BedCard> with SingleTickerProviderStateMixin {
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
-    _pulseAnim = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
-    );
+    _pulseAnim = Tween<double>(
+      begin: 0.3,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
     _updatePulse();
   }
 
@@ -142,8 +145,9 @@ class _BedCardState extends State<BedCard> with SingleTickerProviderStateMixin {
                     child: FluidGauge(
                       percent: reading?.percent ?? 0,
                       statusCode: statusCode,
-                      isLoading: reading == null,
-                      size: 100,
+                      isLoading: reading == null && !widget.hasError,
+                      hasError: reading == null && widget.hasError,
+                      size: 80,
                     ),
                   ),
                 ),
@@ -228,8 +232,8 @@ class _TimestampLabelState extends State<_TimestampLabel> {
 
   @override
   Widget build(BuildContext context) => Text(
-        _label,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 9),
-        textAlign: TextAlign.right,
-      );
+    _label,
+    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 9),
+    textAlign: TextAlign.right,
+  );
 }
