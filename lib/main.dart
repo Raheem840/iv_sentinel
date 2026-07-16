@@ -8,13 +8,13 @@ import 'features/home/home_screen.dart';
 import 'features/settings/bed_config_notifier.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/detail/bed_detail_screen.dart';
+import 'features/splash/splash_screen.dart';
 
 // Global key lets AlertService navigate from outside the widget tree
 final navigatorKey = GlobalKey<NavigatorState>();
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await AlertService.instance.init();
   runApp(const ProviderScope(child: IvSentinelApp()));
 }
 
@@ -79,7 +79,8 @@ class _IvSentinelAppState extends ConsumerState<IvSentinelApp> {
       themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
       initialRoute: '/',
       routes: {
-        '/': (_) => const HomeScreen(),
+        '/': (_) => const SplashScreen(nextRoute: '/home'),
+        '/home': (_) => const HomeScreen(),
         '/settings': (_) => const SettingsScreen(),
       },
       onGenerateRoute: (settings) {

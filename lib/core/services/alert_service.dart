@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:vibration/vibration.dart';
 
@@ -29,23 +30,36 @@ class AlertService {
   }
 
   Future<void> init() async {
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    await _plugin.initialize(
-      const InitializationSettings(android: androidInit),
-      onDidReceiveNotificationResponse: (details) {
-        if (details.payload == null) return;
-        if (_tapStream.hasListener) {
-          _tapStream.add(details.payload!);
-        } else {
-          // App was cold-launched via notification — store for initState to consume
-          _pendingTapPayload = details.payload;
-        }
-      },
-    );
+    // flutter_local_notifications has no web/Windows/macOS/Linux implementation
+    // in this project — skip plugin init on unsupported platforms so it can
+    // never throw and block app startup.
+    if (kIsWeb || !(defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS)) {
+      return;
+    }
 
-    await _plugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.requestNotificationsPermission();
+    try {
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      await _plugin.initialize(
+        const InitializationSettings(android: androidInit),
+        onDidReceiveNotificationResponse: (details) {
+          if (details.payload == null) return;
+          if (_tapStream.hasListener) {
+            _tapStream.add(details.payload!);
+          } else {
+            // App was cold-launched via notification — store for initState to consume
+            _pendingTapPayload = details.payload;
+          }
+        },
+      );
+
+      await _plugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+    } catch (e, st) {
+      // Never let a notification-plugin failure block app startup.
+      debugPrint('AlertService.init failed: $e\n$st');
+    }
   }
 
   /// CRITICAL alert: three strong bursts + max-priority notification.
