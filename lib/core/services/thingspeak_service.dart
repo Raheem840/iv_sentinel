@@ -20,7 +20,15 @@ class ThingSpeakService {
       throw Exception('ThingSpeak error ${response.statusCode} for channel $channelId');
     }
 
-    return _parseEntry(jsonDecode(response.body) as Map<String, dynamic>, channelId);
+    final decoded = jsonDecode(response.body);
+
+    // ThingSpeak returns a bare "-1" (not a JSON object) for feeds/last.json
+    // when the channel has a valid key but no entries have been published yet.
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception('No data published yet for channel $channelId');
+    }
+
+    return _parseEntry(decoded, channelId);
   }
 
   /// Fetches the last [results] readings for the detail-screen chart.
