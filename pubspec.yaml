@@ -44,6 +44,7 @@ dependencies:
   # app is backgrounded — otherwise Android suspends the Dart isolate's
   # Timer within minutes and CRITICAL/LOW alerts stop firing.
   flutter_background_service: ^5.1.0
+  flutter_secure_storage: ^10.3.1
 
 dev_dependencies:
   flutter_test:

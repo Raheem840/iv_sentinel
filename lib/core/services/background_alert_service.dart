@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/bed_config.dart';
 import 'alert_service.dart';
 import 'polling_engine.dart';
+import 'secure_key_store.dart';
 
 // Must match the keys in bed_config_notifier.dart — the background isolate
 // has no access to Riverpod's provider container, so settings are read
@@ -106,13 +107,21 @@ Future<void> _onStart(ServiceInstance service) async {
     final prefs = await SharedPreferences.getInstance();
 
     final bedsJson = prefs.getString(_kBedsKey);
-    final beds = bedsJson == null
+    final rawBeds = bedsJson == null
         ? <BedConfig>[]
         : (jsonDecode(bedsJson) as List)
             .map((e) => BedConfig.fromJson(e as Map<String, dynamic>))
             .toList();
 
-    if (beds.isEmpty) return;
+    if (rawBeds.isEmpty) return;
+
+    // The blob has no API keys (see bed_config_notifier.dart) — pull each
+    // one from encrypted storage before fetching.
+    final beds = <BedConfig>[];
+    for (final bed in rawBeds) {
+      final apiKey = await SecureKeyStore.instance.read(bed.id);
+      beds.add(bed.copyWith(apiKey: apiKey ?? ''));
+    }
 
     final vibrationEnabled = prefs.getBool(_kVibrationKey) ?? true;
     final notificationsEnabled = prefs.getBool(_kNotificationsKey) ?? true;

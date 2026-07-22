@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/models/bed_config.dart';
+import '../../core/services/secure_key_store.dart';
 
 const _kBedsKey = 'iv_sentinel_beds';
 const _kPollIntervalKey = 'iv_sentinel_poll_interval';
@@ -52,11 +53,29 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
     final prefs = await SharedPreferences.getInstance();
 
     final bedsJson = prefs.getString(_kBedsKey);
-    final beds = bedsJson == null
+    final rawBeds = bedsJson == null
         ? <BedConfig>[]
         : (jsonDecode(bedsJson) as List)
             .map((e) => BedConfig.fromJson(e as Map<String, dynamic>))
             .toList();
+
+    // API keys live in encrypted storage, keyed by bed ID, not in this blob.
+    // A bed whose key is still found inline here is from before this
+    // migration — move it to encrypted storage now and strip the blob once.
+    var needsMigration = false;
+    final beds = <BedConfig>[];
+    for (final bed in rawBeds) {
+      final secureKey = await SecureKeyStore.instance.read(bed.id);
+      if (secureKey != null) {
+        beds.add(bed.copyWith(apiKey: secureKey));
+      } else if (bed.apiKey.isNotEmpty) {
+        await SecureKeyStore.instance.write(bed.id, bed.apiKey);
+        beds.add(bed);
+        needsMigration = true;
+      } else {
+        beds.add(bed);
+      }
+    }
 
     state = AppSettings(
       beds: beds,
@@ -65,22 +84,28 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
       notificationsEnabled: prefs.getBool(_kNotificationsKey) ?? true,
       darkMode: prefs.getBool(_kDarkModeKey) ?? true,
     );
+
+    if (needsMigration) await _saveBeds();
   }
 
   Future<void> _saveBeds() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       _kBedsKey,
-      jsonEncode(state.beds.map((b) => b.toJson()).toList()),
+      jsonEncode(
+        state.beds.map((b) => b.copyWith(apiKey: '').toJson()).toList(),
+      ),
     );
   }
 
   Future<void> addBed(BedConfig bed) async {
+    await SecureKeyStore.instance.write(bed.id, bed.apiKey);
     state = state.copyWith(beds: [...state.beds, bed]);
     await _saveBeds();
   }
 
   Future<void> updateBed(BedConfig updated) async {
+    await SecureKeyStore.instance.write(updated.id, updated.apiKey);
     state = state.copyWith(
       beds: state.beds.map((b) => b.id == updated.id ? updated : b).toList(),
     );
@@ -88,6 +113,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
   }
 
   Future<void> removeBed(String id) async {
+    await SecureKeyStore.instance.delete(id);
     state = state.copyWith(beds: state.beds.where((b) => b.id != id).toList());
     await _saveBeds();
   }
