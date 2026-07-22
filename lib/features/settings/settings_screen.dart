@@ -46,12 +46,12 @@ class SettingsScreen extends ConsumerWidget {
             children: [
               _LabeledRow(
                 label: 'Poll interval',
-                sublabel: '${settings.pollIntervalSeconds}s (min 15s)',
+                sublabel: '${settings.pollIntervalSeconds}s',
                 child: Slider(
                   value: settings.pollIntervalSeconds.toDouble(),
-                  min: 15,
+                  min: 1,
                   max: 60,
-                  divisions: 9,
+                  divisions: 59,
                   label: '${settings.pollIntervalSeconds}s',
                   onChanged: (v) => notifier.setPollInterval(v.round()),
                 ),

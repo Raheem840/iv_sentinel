@@ -36,6 +36,15 @@ dependencies:
   # Date/time formatting for chart axis labels and "Updated Xs ago" timestamps
   intl: ^0.19.0
 
+  # Detects device network state so a fetch with no connectivity fails fast
+  # instead of waiting out a ~10s TCP timeout.
+  connectivity_plus: ^6.1.3
+
+  # Keeps polling + alert delivery running in a foreground service when the
+  # app is backgrounded — otherwise Android suspends the Dart isolate's
+  # Timer within minutes and CRITICAL/LOW alerts stop firing.
+  flutter_background_service: ^5.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

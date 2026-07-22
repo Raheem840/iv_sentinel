@@ -49,6 +49,11 @@ class HomeScreen extends ConsumerWidget {
     // real grid + RefreshIndicator never get torn down mid-pull.
     final cachedReadings = readingsAsync.valueOrNull;
 
+    // Reflects the device's network state as of the last fetch round. Read
+    // (not watched) directly — build() already re-runs whenever
+    // bedReadingsProvider emits, so this is current at render time.
+    final isOffline = ref.read(bedReadingsProvider.notifier).isDeviceOffline;
+
     // Count critical beds for the AppBar badge
     final criticalCount = cachedReadings == null
         ? 0
@@ -91,6 +96,7 @@ class HomeScreen extends ConsumerWidget {
                 settings: settings,
                 readings: cachedReadings,
                 historyBuffer: _historyBuffer,
+                isOffline: isOffline,
               )
             : readingsAsync.when(
                 loading: () => _LoadingGrid(count: settings.beds.length),
@@ -114,11 +120,13 @@ class _DataBody extends ConsumerWidget {
   final AppSettings settings;
   final Map<String, BedReading> readings;
   final Map<String, List<double>> historyBuffer;
+  final bool isOffline;
 
   const _DataBody({
     required this.settings,
     required this.readings,
     required this.historyBuffer,
+    required this.isOffline,
   });
 
   @override
@@ -134,6 +142,17 @@ class _DataBody extends ConsumerWidget {
       onRefresh: () => ref.read(bedReadingsProvider.notifier).refresh(),
       child: CustomScrollView(
         slivers: [
+          // Offline indicator — explains why cards may show stale/"no data"
+          // instead of leaving the user to guess the app is broken.
+          SliverToBoxAdapter(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+              child: isOffline
+                  ? const _OfflineBanner()
+                  : const SizedBox.shrink(),
+            ),
+          ),
           // Sticky critical alert banner (hidden when no beds are critical)
           SliverToBoxAdapter(
             child: AnimatedSize(
@@ -151,11 +170,12 @@ class _DataBody extends ConsumerWidget {
           SliverPadding(
             padding: const EdgeInsets.all(16),
             sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
+              gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: _gridMaxExtent(context),
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 1.05, // compact cards
+                childAspectRatio:
+                    0.92, // near-square, fits content with headroom
               ),
               delegate: SliverChildBuilderDelegate((context, i) {
                 final config = settings.beds[i];
@@ -173,6 +193,41 @@ class _DataBody extends ConsumerWidget {
                   ),
                 );
               }, childCount: settings.beds.length),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Offline banner: shown whenever the device itself has no connectivity ──────
+
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: kStatusAmberDim,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kStatusAmber.withAlpha(90)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_rounded, color: kStatusAmber, size: 16),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              "You're offline — showing last known values",
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: kStatusAmber,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -288,16 +343,25 @@ class _LoadingGrid extends StatelessWidget {
         : 4; // show 4 skeletons if no beds yet
     return GridView.builder(
       padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: _gridMaxExtent(context),
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 1.05,
+        childAspectRatio: 0.92,
       ),
       itemCount: displayCount,
       itemBuilder: (context, i) => _SkeletonCard(),
     );
   }
+}
+
+// Cards are sized for a phone by default; widen them on tablet/desktop
+// viewports so a handful of beds don't look lost on a large screen.
+double _gridMaxExtent(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  if (width >= 1000) return 260;
+  if (width >= 600) return 220;
+  return 190;
 }
 
 class _SkeletonCard extends StatefulWidget {

@@ -1,25 +1,22 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/bed_reading.dart';
-import '../services/thingspeak_service.dart';
-import '../services/alert_service.dart';
+import '../services/polling_engine.dart';
 import '../../features/settings/bed_config_notifier.dart';
 
 /// Holds the latest reading for every configured bed, keyed by bed config ID.
 /// Fires alerts when a bed transitions into CRITICAL or LOW status.
 class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
-  final _service = ThingSpeakService();
+  final _engine = PollingEngine();
   Timer? _timer;
 
-  // Tracks the previous status per bed to detect transitions (not just current state)
-  final Map<String, int> _prevStatus = {};
+  // While true, build()/rebuilds must not recreate the timer — the app is
+  // backgrounded and BackgroundAlertService owns polling until resumeFromBackground().
+  bool _pausedForBackground = false;
 
-  // Beds whose most recent fetch attempt failed (bad connectivity, no data
-  // published yet, etc). Lets the UI show "no data" instead of spinning
-  // forever when a bed has been tried at least once and come back empty.
-  final Set<String> _erroredBeds = {};
-  bool hasError(String bedId) => _erroredBeds.contains(bedId);
+  bool get isDeviceOffline => _engine.isDeviceOffline;
+  bool hasError(String bedId) => _engine.hasError(bedId);
 
   @override
   Future<Map<String, BedReading>> build() async {
@@ -32,12 +29,49 @@ class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
       appSettingsProvider.select((s) => s.pollIntervalSeconds),
     );
 
+    _engine.pruneRemovedBeds(beds);
+
+    if (!_pausedForBackground) {
+      _timer?.cancel();
+      _timer = Timer.periodic(Duration(seconds: interval), (_) => _poll());
+    }
+
+    final fresh = await _fetchAll();
+    // Evaluate alerts on the very first fetch too — otherwise a bed that's
+    // already LOW/CRITICAL the moment it's added has to wait up to a full
+    // poll interval (1-60s) before anything vibrates or notifies.
+    await _evaluateAlerts(fresh);
+    return fresh;
+  }
+
+  /// Called when the app backgrounds, right before BackgroundAlertService
+  /// starts. Stops this timer (Android does not reliably suspend
+  /// Timer.periodic just because the app is paused) and hands off the
+  /// transition-tracking state so the background poller doesn't re-alert on
+  /// beds that are already LOW/CRITICAL.
+  Future<void> pauseForBackground() async {
+    _pausedForBackground = true;
+    _timer?.cancel();
+    _timer = null;
+    final prefs = await SharedPreferences.getInstance();
+    await _engine.persistPrevStatus(prefs);
+  }
+
+  /// Called when the app resumes, right after BackgroundAlertService has
+  /// been confirmed stopped. Restores whatever transition state the
+  /// background poller left behind and polls immediately so the UI reflects
+  /// what happened while backgrounded without waiting a full interval.
+  Future<void> resumeFromBackground() async {
+    _pausedForBackground = false;
+    final prefs = await SharedPreferences.getInstance();
+    await _engine.restorePrevStatus(prefs);
+
+    final interval = ref.read(
+      appSettingsProvider.select((s) => s.pollIntervalSeconds),
+    );
+    _timer?.cancel();
     _timer = Timer.periodic(Duration(seconds: interval), (_) => _poll());
-
-    // Remove history for beds that no longer exist
-    _prevStatus.removeWhere((id, _) => !beds.any((b) => b.id == id));
-
-    return _fetchAll();
+    await _poll();
   }
 
   /// Manual refresh — refetches while keeping the previous data available via
@@ -49,37 +83,13 @@ class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
     state = await AsyncValue.guard(_fetchAll);
   }
 
-  /// Fetches all beds in parallel. A single bed failure does NOT wipe others —
-  /// the previous reading is preserved for any bed whose fetch throws.
   Future<Map<String, BedReading>> _fetchAll() async {
     final beds = ref.read(appSettingsProvider).beds;
-    if (beds.isEmpty) return {};
-
-    // Start with whatever we already have so failures keep last-known values
-    final result = Map<String, BedReading>.from(state.valueOrNull ?? {});
-
-    // Run all fetches concurrently; catch per-bed so one failure is isolated
-    await Future.wait(
-      beds.map((bed) async {
-        try {
-          result[bed.id] = await _service.fetchLatest(
-            bed.channelId,
-            bed.apiKey,
-          );
-          _erroredBeds.remove(bed.id);
-        } catch (_) {
-          // Keep the previous reading for this bed; don't disrupt other beds
-          _erroredBeds.add(bed.id);
-        }
-      }),
-    );
-
-    return result;
+    return _engine.fetchAll(beds, state.valueOrNull ?? {});
   }
 
   /// Timer tick — updates state without a full loading-spinner cycle.
   Future<void> _poll() async {
-    final settings = ref.read(appSettingsProvider);
     final Map<String, BedReading> fresh;
     try {
       fresh = await _fetchAll();
@@ -91,44 +101,17 @@ class BedReadingsNotifier extends AsyncNotifier<Map<String, BedReading>> {
     // Publish the fetch result immediately — alert delivery below must never
     // block or override data that was successfully retrieved.
     state = AsyncData(fresh);
+    await _evaluateAlerts(fresh);
+  }
 
-    // Evaluate status transitions and fire per-feature alerts
-    for (final bed in settings.beds) {
-      final reading = fresh[bed.id];
-      if (reading == null) continue;
-
-      final prev = _prevStatus[bed.id];
-      final curr = reading.statusCode;
-
-      if (prev != curr) {
-        try {
-          if (curr == 2) {
-            // Entered CRITICAL — fire notification and/or vibration based on user prefs
-            await AlertService.instance.fireCritical(
-              bed.name,
-              reading.percent.toInt(),
-              bed.id,
-              notify: settings.notificationsEnabled,
-              vibrate: settings.vibrationEnabled,
-            );
-          } else if (curr == 1 && (prev == null || prev == 0)) {
-            // Entered LOW from normal (don't re-alert when coming down from CRITICAL)
-            await AlertService.instance.fireLow(
-              bed.name,
-              reading.percent.toInt(),
-              bed.id,
-              notify: settings.notificationsEnabled,
-              vibrate: settings.vibrationEnabled,
-            );
-          }
-        } catch (e, st) {
-          // Never let a notification/vibration failure affect displayed data.
-          debugPrint('Alert delivery failed for bed ${bed.id}: $e\n$st');
-        }
-      }
-
-      _prevStatus[bed.id] = curr;
-    }
+  Future<void> _evaluateAlerts(Map<String, BedReading> fresh) async {
+    final settings = ref.read(appSettingsProvider);
+    await _engine.evaluateAlerts(
+      settings.beds,
+      fresh,
+      notificationsEnabled: settings.notificationsEnabled,
+      vibrationEnabled: settings.vibrationEnabled,
+    );
   }
 }
 

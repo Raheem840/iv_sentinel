@@ -2,6 +2,16 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/bed_reading.dart';
 
+/// Thrown when ThingSpeak returns HTTP 429 (rate limited). Distinguished from
+/// other failures so callers can keep showing last-known data instead of
+/// treating a throttled poll tick as "no data".
+class ThingSpeakRateLimitException implements Exception {
+  final String message;
+  ThingSpeakRateLimitException(this.message);
+  @override
+  String toString() => message;
+}
+
 /// Handles all communication with the ThingSpeak REST API.
 /// Each ThingSpeak channel maps to one physical bed.
 class ThingSpeakService {
@@ -10,12 +20,17 @@ class ThingSpeakService {
   /// Fetches the single most-recent reading for one channel.
   /// field1 = fluid %, field2 = status code (0/1/2), field3 = bed ID string.
   Future<BedReading> fetchLatest(String channelId, String apiKey) async {
-    final uri = Uri.parse(
-      '$_base/channels/$channelId/feeds/last.json?api_key=$apiKey',
-    );
+    final uri = Uri.parse('$_base/channels/$channelId/feeds/last.json');
 
-    final response = await http.get(uri).timeout(const Duration(seconds: 10));
+    // Sent as a header rather than a query param so the key doesn't end up
+    // in plaintext in HTTP proxy/server access logs.
+    final response = await http
+        .get(uri, headers: {'X-THINGSPEAKAPIKEY': apiKey})
+        .timeout(const Duration(seconds: 8));
 
+    if (response.statusCode == 429) {
+      throw ThingSpeakRateLimitException('ThingSpeak rate limit hit for channel $channelId');
+    }
     if (response.statusCode != 200) {
       throw Exception('ThingSpeak error ${response.statusCode} for channel $channelId');
     }
@@ -38,11 +53,16 @@ class ThingSpeakService {
     int results = 60,
   }) async {
     final uri = Uri.parse(
-      '$_base/channels/$channelId/feeds.json?api_key=$apiKey&results=$results',
+      '$_base/channels/$channelId/feeds.json?results=$results',
     );
 
-    final response = await http.get(uri).timeout(const Duration(seconds: 10));
+    final response = await http
+        .get(uri, headers: {'X-THINGSPEAKAPIKEY': apiKey})
+        .timeout(const Duration(seconds: 10));
 
+    if (response.statusCode == 429) {
+      throw ThingSpeakRateLimitException('ThingSpeak rate limit hit for channel $channelId');
+    }
     if (response.statusCode != 200) {
       throw Exception('ThingSpeak error ${response.statusCode} for channel $channelId');
     }

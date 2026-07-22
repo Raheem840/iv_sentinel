@@ -19,7 +19,7 @@ class AppSettings {
 
   const AppSettings({
     this.beds = const [],
-    this.pollIntervalSeconds = 15,
+    this.pollIntervalSeconds = 1,
     this.vibrationEnabled = true,
     this.notificationsEnabled = true,
     this.darkMode = true,
@@ -60,7 +60,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
 
     state = AppSettings(
       beds: beds,
-      pollIntervalSeconds: prefs.getInt(_kPollIntervalKey) ?? 15,
+      pollIntervalSeconds: prefs.getInt(_kPollIntervalKey) ?? 1,
       vibrationEnabled: prefs.getBool(_kVibrationKey) ?? true,
       notificationsEnabled: prefs.getBool(_kNotificationsKey) ?? true,
       darkMode: prefs.getBool(_kDarkModeKey) ?? true,
@@ -93,7 +93,7 @@ class AppSettingsNotifier extends StateNotifier<AppSettings> {
   }
 
   Future<void> setPollInterval(int seconds) async {
-    state = state.copyWith(pollIntervalSeconds: seconds.clamp(15, 60));
+    state = state.copyWith(pollIntervalSeconds: seconds.clamp(1, 60));
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kPollIntervalKey, state.pollIntervalSeconds);
   }

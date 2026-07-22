@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -19,6 +21,22 @@ class BedDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // The history chart is fetched once (feeds.json) and doesn't ride the
+    // live-reading poll, so it can go stale — e.g. a bed added before it had
+    // any published readings keeps showing an empty chart forever even after
+    // real data starts arriving. Re-fetch history whenever a genuinely new
+    // reading timestamp lands for this bed while its detail screen is open.
+    ref.listen<AsyncValue<Map<String, BedReading>>>(bedReadingsProvider, (
+      previous,
+      next,
+    ) {
+      final prevTimestamp = previous?.valueOrNull?[config.id]?.timestamp;
+      final nextTimestamp = next.valueOrNull?[config.id]?.timestamp;
+      if (nextTimestamp != null && nextTimestamp != prevTimestamp) {
+        ref.invalidate(bedHistoryProvider(config));
+      }
+    });
+
     final historyAsync = ref.watch(bedHistoryProvider(config));
     final readingsAsyncValue = ref.watch(bedReadingsProvider);
     final liveReading = readingsAsyncValue.whenData((m) => m[config.id]).value;
@@ -134,11 +152,9 @@ class BedDetailScreen extends ConsumerWidget {
                             ref.invalidate(bedHistoryProvider(config)),
                       ),
                       data: (readings) => readings.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No history available yet',
-                                style: TextStyle(color: kTextSecondaryDark),
-                              ),
+                          ? _EmptyHistory(
+                              onRetry: () =>
+                                  ref.invalidate(bedHistoryProvider(config)),
                             )
                           : HistoryChart(
                               readings: readings,
@@ -426,6 +442,57 @@ class _InfoRow extends StatelessWidget {
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Chart empty state ─────────────────────────────────────────────────────────
+//
+// A bed added while its channel had no (or too little) published data yet
+// caches an empty history result. Auto-retry once shortly after this state
+// appears so the chart self-heals as soon as feeds.json catches up, and
+// offer a manual Retry for anyone who doesn't want to wait.
+class _EmptyHistory extends StatefulWidget {
+  final VoidCallback onRetry;
+
+  const _EmptyHistory({required this.onRetry});
+
+  @override
+  State<_EmptyHistory> createState() => _EmptyHistoryState();
+}
+
+class _EmptyHistoryState extends State<_EmptyHistory> {
+  Timer? _autoRetryTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _autoRetryTimer = Timer(const Duration(seconds: 5), widget.onRetry);
+  }
+
+  @override
+  void dispose() {
+    _autoRetryTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'No history available yet',
+            style: TextStyle(color: kTextSecondaryDark),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: widget.onRetry,
+            child: const Text('Retry', style: TextStyle(color: kStatusGreen)),
           ),
         ],
       ),
